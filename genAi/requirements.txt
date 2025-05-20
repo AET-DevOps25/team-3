@@ -1,2 +1,5 @@
 fastapi==0.115.6
 pydantic==2.10.2
+pre-commit==3.6.2
+flake8==7.0.0
+black==24.2.0
