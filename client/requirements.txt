@@ -1,0 +1,11 @@
+# Node.js version
+node==18-alpine
+
+# Nginx version
+nginx==alpine
+
+# Key npm packages (these will be installed via package.json)
+react>=18.2.0
+react-dom>=18.2.0
+react-scripts>=5.0.1
+web-vitals>=2.1.4 
