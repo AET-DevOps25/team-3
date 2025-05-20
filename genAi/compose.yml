@@ -1,19 +1,32 @@
 ---
 services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - WEAVIATE_URL=http://weaviate:8082
+    depends_on:
+      - weaviate
+    networks:
+      - genai-network
+
   weaviate:
     command:
-    - --host
-    - 0.0.0.0
-    - --port
-    - '8080'
-    - --scheme
-    - http
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8082'
+      - --scheme
+      - http
     image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
     ports:
-    - 8080:8080
-    - 50051:50051
+      - 8082:8082
+      - 50051:50051
     volumes:
-    - weaviate_data:/var/lib/weaviate
+      - weaviate_data:/var/lib/weaviate
     restart: on-failure:0
     environment:
       QUERY_DEFAULTS_LIMIT: 25
@@ -21,5 +34,12 @@ services:
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       ENABLE_API_BASED_MODULES: 'true'
       CLUSTER_HOSTNAME: 'node1'
+    networks:
+      - genai-network
+
 volumes:
   weaviate_data:
+
+networks:
+  genai-network:
+    driver: bridge
