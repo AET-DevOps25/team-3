@@ -1,0 +1,163 @@
+# Global settings
+global:
+  namespace: team-3
+  imageRegistry: "docker.io"
+  imagePullSecrets: []
+
+# Client (React Frontend)
+client:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: team-3/client
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    hosts:
+      - host: team-3.aet.tum.de
+        paths:
+          - path: /
+            pathType: Prefix
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+# Server (Spring Boot Backend)
+server:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: team-3/server
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    hosts:
+      - host: team-3-api.aet.tum.de
+        paths:
+          - path: /
+            pathType: Prefix
+  env:
+    SPRING_PROFILES_ACTIVE: "prod"
+    SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/mydb"
+    SPRING_DATASOURCE_USERNAME: "postgres"
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# GenAI Service (Python FastAPI)
+genai:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: team-3/genai
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  ingress:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/rewrite-target: /
+    hosts:
+      - host: team-3-genai.aet.tum.de
+        paths:
+          - path: /
+            pathType: Prefix
+  env:
+    WEAVIATE_URL: "http://weaviate:8082"
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "400m"
+
+# PostgreSQL Database
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  persistence:
+    enabled: true
+    storageClass: "standard"
+    size: 2Gi
+  env:
+    POSTGRES_DB: "mydb"
+    POSTGRES_USER: "postgres"
+    POSTGRES_PASSWORD: "postgres"  # In production, use a secret
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Weaviate Vector Database
+weaviate:
+  enabled: true
+  image:
+    repository: cr.weaviate.io/semitechnologies/weaviate
+    tag: "1.30.3"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    ports:
+      http: 8082
+      grpc: 50051
+  persistence:
+    enabled: true
+    storageClass: "standard"
+    size: 2Gi
+  env:
+    QUERY_DEFAULTS_LIMIT: 25
+    AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+    PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+    ENABLE_API_BASED_MODULES: 'true'
+    CLUSTER_HOSTNAME: 'node1'
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Security
+secrets:
+  postgres:
+    password: "postgres"  # This should be overridden in production

@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.global.namespace }}
+  labels:
+    {{- include "team-3-app.labels" . | nindent 4 }}
+    project: "ase-team-3"

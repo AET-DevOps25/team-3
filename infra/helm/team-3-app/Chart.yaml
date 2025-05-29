@@ -1,0 +1,17 @@
+apiVersion: v2
+name: team-3-app
+description: A Helm chart for Team 3 ASE project - Full-stack application with React frontend, Spring Boot backend, GenAI service, PostgreSQL, and Weaviate
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - team-3
+  - ase
+  - react
+  - spring-boot
+  - postgresql
+  - weaviate
+  - genai
+maintainers:
+  - name: Team 3
+    email: team3@tum.de
