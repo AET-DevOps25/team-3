@@ -1,0 +1,54 @@
+name: Provision Infrastructure
+
+on:
+  push:
+    paths:
+      - 'infra/**'
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+
+      - name: Set up SSH key for Ansible
+        working-directory: infra/ansible
+        run: |
+          echo "${{ secrets.LABUSER_SSH_BASE64 }}" | base64 -d > key.pem
+          chmod 400 key.pem
+
+      - name: Generate Ansible inventory
+        working-directory: infra/ansible
+        run: |
+          echo "[ec2]" > inventory.ini
+          echo "$(terraform output -raw public_ip) ansible_user=ubuntu ansible_ssh_private_key_file=key.pem" >> inventory.ini
+
+
+      - name: Install Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Run Ansible Playbook
+        working-directory: infra/ansible
+        run: ansible-playbook -i inventory.ini install_docker.yml
