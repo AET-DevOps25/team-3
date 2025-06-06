@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   client:
-    image: ghcr.io/AET-DevOps25/team-3/client:{{ image_tag }}
+    image: ghcr.io/aet-devops25/team-3/client:{{ image_tag }}
     ports:
       - "80:80"
     depends_on:
       - server
 
   server:
-    image: ghcr.io/AET-DevOps25/team-3/server:{{ image_tag }}
+    image: ghcr.io/aet-devops25/team-3/server:{{ image_tag }}
     ports:
       - "8080:8080"
     environment: # TODO: replace values with an env variables & secrets
@@ -21,7 +21,7 @@ services:
       - weaviate
 
   genai:
-    image: ghcr.io/AET-DevOps25/team-3/genai:{{ image_tag }}
+    image: ghcr.io/aet-devops25/team-3/genai:{{ image_tag }}
     ports:
       - "8081:8081"
     depends_on:
