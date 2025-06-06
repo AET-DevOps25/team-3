@@ -1,6 +1,8 @@
 name: Deploy to EC2
 
-on: push # TODO: test, change to only main
+on:
+  push:
+    branches: [main]
 
 jobs:
   build-and-push:
