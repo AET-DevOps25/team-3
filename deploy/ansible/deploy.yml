@@ -1,0 +1,33 @@
+---
+- name: Deploy App Stack
+  hosts: ec2
+  become: true
+
+  vars:
+    project_dir: /home/ubuntu/app
+    image_tag: "{{ lookup('env','IMAGE_TAG') }}"
+
+  tasks:
+    - name: Ensure project directory exists
+      file:
+        path: "{{ project_dir }}"
+        state: directory
+
+    - name: Template compose with image tags
+      template:
+        src: ../../docker-compose.yml.j2
+        dest: "{{ project_dir }}/docker-compose.yml"
+
+    - name: Log in to GHCR
+      shell: |
+        echo "{{ lookup('env','GITHUB_TOKEN') }}" | docker login ghcr.io -u "{{ lookup('env','GITHUB_ACTOR') }}" --password-stdin
+
+    - name: Pull latest images
+      shell: docker-compose pull
+      args:
+        chdir: "{{ project_dir }}"
+
+    - name: Run stack
+      shell: docker-compose up -d
+      args:
+        chdir: "{{ project_dir }}"
