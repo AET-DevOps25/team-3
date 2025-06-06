@@ -38,7 +38,7 @@ jobs:
 
       - name: Build and push genai
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genai
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genAi
           docker push ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA}
 
     # Deploy
