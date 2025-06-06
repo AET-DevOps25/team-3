@@ -28,18 +28,18 @@ jobs:
     # Build and Push
       - name: Build and push client
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/AET-DevOps25/team-3/client:${COMMIT_SHA} ./client
-          docker push ghcr.io/AET-DevOps25/team-3/client:${COMMIT_SHA}
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
+          docker push ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA}
 
       - name: Build and push server
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/AET-DevOps25/team-3/server:${COMMIT_SHA} ./server
-          docker push ghcr.io/AET-DevOps25/team-3/server:${COMMIT_SHA}
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/server:${COMMIT_SHA} ./server
+          docker push ghcr.io/aet-devops25/team-3/server:${COMMIT_SHA}
 
       - name: Build and push genai
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/AET-DevOps25/team-3/genai:${COMMIT_SHA} ./genai
-          docker push ghcr.io/AET-DevOps25/team-3/genai:${COMMIT_SHA}
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genai
+          docker push ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA}
 
     # Deploy
       - name: Set up SSH key
