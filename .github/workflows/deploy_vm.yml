@@ -1,0 +1,59 @@
+name: Deploy to EC2
+
+on: push # TODO: test, change to only main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      COMMIT_SHA: ${{ github.sha }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${GITHUB_ACTOR}
+          password: ${GITHUB_TOKEN}
+
+    # Build and Push
+      - name: Build and push client
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/AET-DevOps25/team-3/client:${COMMIT_SHA} ./client
+          docker push ghcr.io/AET-DevOps25/team-3/client:${COMMIT_SHA}
+
+      - name: Build and push server
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/AET-DevOps25/team-3/server:${COMMIT_SHA} ./server
+          docker push ghcr.io/AET-DevOps25/team-3/server:${COMMIT_SHA}
+
+      - name: Build and push genai
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/AET-DevOps25/team-3/genai:${COMMIT_SHA} ./genai
+          docker push ghcr.io/AET-DevOps25/team-3/genai:${COMMIT_SHA}
+
+    # Deploy
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.LABUSER_SSH_BASE64 }}" | base64 -d > key.pem
+          chmod 400 key.pem
+
+      - name: Generate Ansible inventory
+        run: | # TODO: use domain name instead of IP
+          echo "[ec2]" > inventory.ini
+          echo "3.213.212.90 ansible_user=ubuntu ansible_ssh_private_key_file=key.pem" >> inventory.ini
+
+      - name: Install Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Deploy with Ansible
+        run: ansible-playbook -i inventory.ini deploy/ansible/deploy.yml
