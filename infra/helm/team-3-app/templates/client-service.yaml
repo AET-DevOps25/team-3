@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: client
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/component: client
+spec:
+  type: {{ .Values.client.service.type }}
+  ports:
+  - port: {{ .Values.client.service.port }}
+    targetPort: {{ .Values.client.service.targetPort }}
+    protocol: TCP
+  selector:
+    app.kubernetes.io/component: client
