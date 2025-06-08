@@ -3,15 +3,34 @@ version: '3.8'
 services:
   client:
     image: ghcr.io/aet-devops25/team-3/client:{{ image_tag }}
-    ports:
-      - "80:80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.middlewares=redirect-to-https"
+      # Router for HTTP (redirects to HTTPS)
+      - "traefik.http.routers.client-http.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/`) && !PathPrefix(`/api`, `/genai`)"
+      - "traefik.http.routers.client-http.entrypoints=web"
+      - "traefik.http.routers.client-http.middlewares=redirect-to-https"
+      # Router for HTTPS
+      - "traefik.http.routers.client-https.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/`) && !PathPrefix(`/api`, `/genai`)"
+      - "traefik.http.routers.client-https.entrypoints=websecure"
+      - "traefik.http.routers.client-https.tls.certresolver=letsencrypt"
+
     depends_on:
       - server
 
   server:
     image: ghcr.io/aet-devops25/team-3/server:{{ image_tag }}
-    ports:
-      - "8080:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.server.middlewares=redirect-to-https"
+      # Router for HTTP (redirects to HTTPS)
+      - "traefik.http.routers.server-http.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.server-http.entrypoints=web"
+      - "traefik.http.routers.server-http.middlewares=redirect-to-https"
+      # Router for HTTPS
+      - "traefik.http.routers.server-https.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.server-https.entrypoints=websecure"
+      - "traefik.http.routers.server-https.tls.certresolver=letsencrypt"
     environment: # TODO: replace values with an env variables & secrets
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/mydb
       - SPRING_DATASOURCE_USERNAME=postgres
@@ -22,8 +41,17 @@ services:
 
   genai:
     image: ghcr.io/aet-devops25/team-3/genai:{{ image_tag }}
-    ports:
-      - "8081:8081"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.genai.middlewares=redirect-to-https"
+      # Router for HTTP (redirects to HTTPS)
+      - "traefik.http.routers.genai-http.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/genai`)"
+      - "traefik.http.routers.genai-http.entrypoints=web"
+      - "traefik.http.routers.genai-http.middlewares=redirect-to-https"
+      # Router for HTTPS
+      - "traefik.http.routers.genai-https.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/genai`)"
+      - "traefik.http.routers.genai-https.entrypoints=websecure"
+      - "traefik.http.routers.genai-https.tls.certresolver=letsencrypt"
     depends_on:
       - weaviate
 
@@ -59,6 +87,19 @@ services:
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       ENABLE_API_BASED_MODULES: 'true'
       CLUSTER_HOSTNAME: 'node1'
+
+  traefik:
+    image: traefik:v2.11
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./traefik.yml:/traefik.yml
+      - ./acme.json:/acme.json
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
 volumes:
   pgdata:

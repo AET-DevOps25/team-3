@@ -382,3 +382,6 @@ sketch
 .terraform/
 terraform.tfstate
 terraform.tfstate.backup
+
+# Traefik
+acme.json
