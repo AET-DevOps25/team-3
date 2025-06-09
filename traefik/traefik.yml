@@ -1,0 +1,32 @@
+log:
+  level: INFO
+
+api:
+  # Enable the API and dashboard. # TODO: secure
+  insecure: true
+  dashboard: true
+
+providers:
+  docker:
+    exposedByDefault: false
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      email: "wa.baroudi9@gmail.com"
+      storage: "/letsencrypt/acme.json"
+      tlsChallenge: {}
+      # Uncomment the line below for testing/staging certificates to avoid rate limits
+      # caServer: "https://acme-staging-v02.api.letsencrypt.org/directory"
