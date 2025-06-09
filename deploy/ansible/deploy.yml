@@ -23,6 +23,14 @@
         src: ../../traefik/
         dest: "{{ project_dir }}/traefik/"
 
+    - name: Create acme.json file for Let's Encrypt certificates
+      file:
+        path: "{{ project_dir }}/traefik/acme.json"
+        state: touch
+        mode: '0600'
+        owner: root
+        group: root
+
     - name: Log in to GHCR
       shell: |
         echo "{{ lookup('env','GITHUB_TOKEN') }}" | docker login ghcr.io -u "{{ lookup('env','GITHUB_ACTOR') }}" --password-stdin
