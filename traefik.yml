@@ -7,7 +7,7 @@ entryPoints:
 certificatesResolvers:
   letsencrypt:
     acme:
-      email: your@email.com
+      email: wa.baroudi9@gmail.com
       storage: acme.json
       httpChallenge:
         entryPoint: web
