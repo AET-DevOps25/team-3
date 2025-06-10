@@ -1,0 +1,136 @@
+# This file contains the default values for the studymate App Helm chart.
+
+teamid: team-3
+
+server:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/server
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 8080
+  replicaCount: 1
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: docker
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: server-secret
+          key: database-url
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: server-secret
+          key: jwt-secret
+
+client:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/client
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  replicaCount: 1
+
+genAi:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/genai
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  replicaCount: 1
+  env:
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: api-key
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: server-secret
+          key: database-url
+
+postgres:
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  replicaCount: 1
+  env:
+    - name: POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: POSTGRES_DB
+      value: mydb
+
+weaviate:
+  image:
+    repository: cr.weaviate.io/semitechnologies/weaviate
+    tag: "1.30.3"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8082
+    targetPort: 8082
+  replicaCount: 1
+  env:
+    - name: QUERY_DEFAULTS_LIMIT
+      value: "25"
+    - name: AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED
+      value: "true"
+    - name: PERSISTENCE_DATA_PATH
+      value: "/var/lib/weaviate"
+    - name: ENABLE_API_BASED_MODULES
+      value: "true"
+    - name: CLUSTER_HOSTNAME
+      value: "node1"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  tls: true
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+# Define secret creation in values
+secrets:
+  postgres:
+    create: true
+    name: postgres-secret
+    data:
+      username: postgres
+      password: "" # This should be set via --set-string or separate secret file
+
+  # You might need additional secrets for:
+  genai:
+    create: true
+    name: genai-secret
+    data:
+      apiKey: ""
+      
+  server:
+    create: true  
+    name: server-secret
+    data:
+      jwtSecret: ""
+      databaseUrl: ""
