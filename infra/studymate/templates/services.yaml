@@ -1,0 +1,99 @@
+# Server Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-server
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  type: {{ .Values.server.service.type }}
+  ports:
+    - port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+---
+# Client Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-client
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: client
+spec:
+  type: {{ .Values.client.service.type }}
+  ports:
+    - port: {{ .Values.client.service.port }}
+      targetPort: {{ .Values.client.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: client
+---
+# GenAI Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-genai
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: genai
+spec:
+  type: {{ .Values.genAi.service.type }}
+  ports:
+    - port: {{ .Values.genAi.service.port }}
+      targetPort: {{ .Values.genAi.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: genai
+---
+# PostgreSQL Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-postgres
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  type: {{ .Values.postgres.service.type }}
+  ports:
+    - port: {{ .Values.postgres.service.port }}
+      targetPort: {{ .Values.postgres.service.targetPort }}
+      protocol: TCP
+      name: postgres
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+---
+# Weaviate Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-weaviate
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: weaviate
+spec:
+  type: {{ .Values.weaviate.service.type }}
+  ports:
+    - port: {{ .Values.weaviate.service.port }}
+      targetPort: {{ .Values.weaviate.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: weaviate 
