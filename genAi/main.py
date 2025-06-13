@@ -1,10 +1,17 @@
 from fastapi import FastAPI
 import os
 import weaviate
+from langchain_groq import ChatGroq
+from llm import StudyLLM
+from pydantic import BaseModel
 
 # Initialize Weaviate client
-weaviate_url = os.getenv("WEAVIATE_URL", "http://weaviate:8082")
+weaviate_url = "http://localhost:8082" # Replace with url to weavite container from .env
 client = weaviate.Client(url=weaviate_url)
+
+class PromptRequest(BaseModel):
+    prompt: str
+
 
 app = FastAPI(
     title="tutor",
@@ -25,6 +32,7 @@ app = FastAPI(
     ],
 )
 
+llm = StudyLLM()
 
 @app.get("/health")
 async def health_check():
@@ -35,3 +43,11 @@ async def health_check():
         return {"status": "healthy", "weaviate": "connected"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
+
+@app.post("/prompt")
+async def receive_prompt(data: PromptRequest):
+    """
+    Receive a prompt and return a response from the LLM.
+    """
+    response = llm.call(data.prompt)
+    return {"response": response}
