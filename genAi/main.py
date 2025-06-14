@@ -1,17 +1,12 @@
 from fastapi import FastAPI
 import os
+from request_models import PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
 import weaviate
-from langchain_groq import ChatGroq
 from llm import StudyLLM
-from pydantic import BaseModel
 
 # Initialize Weaviate client
 weaviate_url = "http://localhost:8082" # Replace with url to weavite container from .env
 client = weaviate.Client(url=weaviate_url)
-
-class PromptRequest(BaseModel):
-    prompt: str
-
 
 app = FastAPI(
     title="tutor",
@@ -44,10 +39,32 @@ async def health_check():
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
-@app.post("/prompt")
+@app.post("/chat")
 async def receive_prompt(data: PromptRequest):
     """
     Receive a prompt and return a response from the LLM.
     """
-    response = llm.call(data.prompt)
+    response = llm.call(data.message)
     return {"response": response}
+
+@app.post("/summary")
+async def receive_prompt(data: SummaryRequest):
+    """
+    Receive a summary reuest and return a summary from the LLM.
+    """
+    return {"message": 'to be implemented'}
+
+@app.post("/flashcard")
+async def receive_prompt(data: FlashcardRequest):
+    """
+    Receive a flashcard request and return flashcard objects from the LLM.
+    """
+    return {"message": 'to be implemented'}
+
+@app.post("/quiz")
+async def receive_prompt(data: QuizRequest):
+    """
+    Receive a quiz request and return a quiz object from the LLM.
+    """
+    return {"message": 'to be implemented'}
+
