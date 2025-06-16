@@ -44,7 +44,7 @@ async def receive_prompt(data: PromptRequest):
     """
     Receive a prompt and return a response from the LLM.
     """
-    response = llm.call(data.message)
+    response = llm.prompt(data.message)
     return {"response": response}
 
 @app.post("/summary")
@@ -52,7 +52,8 @@ async def receive_prompt(data: SummaryRequest):
     """
     Receive a summary reuest and return a summary from the LLM.
     """
-    return {"message": 'to be implemented'}
+    response = llm.summarize(data)
+    return {"response": response}
 
 @app.post("/flashcard")
 async def receive_prompt(data: FlashcardRequest):
