@@ -1,0 +1,145 @@
+openapi: 3.0.3
+info:
+  title: Document Service API
+  description: API for managing documents in the system
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: Document Service API v1
+
+paths:
+  /documents:
+    get:
+      summary: Get all documents
+      operationId: getDocuments
+      responses:
+        '200':
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Document'
+    post:
+      summary: Create a new document
+      operationId: createDocument
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentCreate'
+      responses:
+        '201':
+          description: Document created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+
+  /documents/{id}:
+    get:
+      summary: Get document by ID
+      operationId: getDocumentById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Document details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+    put:
+      summary: Update document
+      operationId: updateDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUpdate'
+      responses:
+        '200':
+          description: Document updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Document'
+    delete:
+      summary: Delete document
+      operationId: deleteDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Document deleted successfully
+
+components:
+  schemas:
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        content:
+          type: object
+          description: JSON content of the document
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - title
+        - content
+
+    DocumentCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: object
+          description: JSON content of the document
+        metadata:
+          type: object
+          additionalProperties: true
+      required:
+        - title
+        - content
+
+    DocumentUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        content:
+          type: object
+          description: JSON content of the document
+        metadata:
+          type: object
+          additionalProperties: true 
