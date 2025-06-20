@@ -1,0 +1,125 @@
+The human body has four primary tissue types, each with specialized functions and characteristics. These are:
+
+1. Epithelial Tissue
+Function: Covers body surfaces, lines cavities and organs, and forms glands.
+
+Characteristics:
+
+Tightly packed cells with minimal extracellular matrix.
+
+Avascular (lacks blood vessels) but innervated.
+
+Rapid cell division and regeneration.
+
+Polarity: has an apical (free) surface and a basal surface attached to a basement membrane.
+
+Types:
+
+a. By layers:
+Simple epithelium – single layer (e.g., alveoli in lungs).
+
+Stratified epithelium – multiple layers (e.g., skin).
+
+Pseudostratified epithelium – appears layered but isn’t (e.g., respiratory tract).
+
+b. By shape:
+Squamous – flat and thin.
+
+Cuboidal – cube-shaped.
+
+Columnar – tall and column-like.
+
+Transitional – changes shape (e.g., bladder lining).
+
+Examples:
+
+Skin epidermis (stratified squamous).
+
+Intestinal lining (simple columnar).
+
+Kidney tubules (simple cuboidal).
+
+2. Connective Tissue
+Function: Supports, binds, and protects organs; stores energy; provides immunity.
+
+Characteristics:
+
+Abundant extracellular matrix (fibers and ground substance).
+
+Vascular (varies by type).
+
+Includes cells like fibroblasts, adipocytes, macrophages, mast cells.
+
+Types:
+
+a. Connective Tissue Proper
+Loose connective tissue (e.g., areolar, adipose).
+
+Dense connective tissue (e.g., tendons, ligaments).
+
+b. Specialized Connective Tissues
+Cartilage (hyaline, elastic, fibrocartilage) – avascular, flexible.
+
+Bone – rigid, mineralized.
+
+Blood – fluid matrix (plasma), transports cells and nutrients.
+
+Lymph – fluid involved in immune responses.
+
+Examples:
+
+Fat tissue (adipose).
+
+Bone marrow.
+
+Tendons and ligaments.
+
+3. Muscle Tissue
+Function: Produces movement via contraction.
+
+Characteristics:
+
+Excitable and contractile.
+
+Contains actin and myosin filaments.
+
+Highly vascular.
+
+Types:
+
+Skeletal muscle – voluntary, striated, multinucleated, attached to bones.
+
+Cardiac muscle – involuntary, striated, intercalated discs, found in the heart.
+
+Smooth muscle – involuntary, non-striated, found in walls of organs and vessels.
+
+Examples:
+
+Biceps (skeletal).
+
+Heart wall (cardiac).
+
+Intestinal wall (smooth).
+
+4. Nervous Tissue
+Function: Transmits electrical signals; coordinates body functions.
+
+Characteristics:
+
+Excitable and conductive.
+
+Poor regenerative ability (especially in the CNS).
+
+Components:
+
+Neurons – transmit signals.
+
+Neuroglia (glial cells) – support, protect, and nourish neurons.
+
+Examples:
+
+Brain.
+
+Spinal cord.
+
+Peripheral nerves.

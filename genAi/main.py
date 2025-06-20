@@ -1,12 +1,18 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import os
+from rag import rag_cleanup
 from request_models import PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
-import weaviate
 from llm import StudyLLM
 
-# Initialize Weaviate client
-weaviate_url = "http://localhost:8082" # Replace with url to weavite container from .env
-client = weaviate.Client(url=weaviate_url)
+
+
+@asynccontextmanager
+async def lifespan(_):
+    # Startup: init stuff if needed
+    yield
+    # Shutdown: cleanup
+    rag_cleanup()
 
 app = FastAPI(
     title="tutor",
@@ -25,6 +31,7 @@ app = FastAPI(
         },
         {"name": "Ingestion", "description": "Endpoints to start ingestion processes."},
     ],
+    lifespan=lifespan
 )
 
 llm = StudyLLM()
@@ -33,9 +40,7 @@ llm = StudyLLM()
 async def health_check():
     """Check the health of the service and its dependencies."""
     try:
-        # Check if Weaviate is accessible
-        client.is_ready()
-        return {"status": "healthy", "weaviate": "connected"}
+        return {"status": "healthy"}
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
@@ -69,3 +74,8 @@ async def receive_prompt(data: QuizRequest):
     """
     return {"message": 'to be implemented'}
 
+
+# Shut down clean up
+@app.on_event("shutdown")
+def close_weaviate():
+    weaviate_client.close()
