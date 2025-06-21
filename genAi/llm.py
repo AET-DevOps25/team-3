@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from request_models import SummaryRequest
 from response_models import SummaryResponse
 
-from rag import retrieve
+from rag import RAGHelper
 
 load_dotenv()
 
@@ -23,10 +23,9 @@ class StudyLLM:
         base_url="https://gpu.aet.cit.tum.de/api/"
     )
     
-    def __init__(self):
+    def __init__(self, doc_path: str):
         base_system_template = ("You are an expert on the information in the context given below.\n"
-                                     "Use the context as your only knowledge source, do not get info from any other source. If you can't fulfill your task given the context, just say that.\n"
-                                     "You must only use the provided context. Do not rely on prior knowledge. Even if the answer seems obvious, only use what's in the context. If the answer is not in the context exactly, say 'I don't know.'\n"
+                                     "Use the context as your primary knowledge source. If you can't fulfill your task given the context, just say that.\n"
                                     "context: {context}\n"
                                     "Your task is {task}"
                                     )
@@ -34,6 +33,10 @@ class StudyLLM:
             ('system', base_system_template),
             ('human', '{input}')
         ])
+        try: 
+            self.rag_helper = RAGHelper(doc_path)
+        except Exception as e:
+            raise ValueError(f"Error initializing RAGHelper: {e}")
     
     def _chain(self, output_model: BaseModel = None):
         """
@@ -65,11 +68,10 @@ class StudyLLM:
         """
         task =  (
             "To answer questions based on your context."
-            "You can only answer questions if the answer exists in your context, Otherwise you will answer 'I don't know.'\n"
-            "If you're asked a question that does not relate to your context, answer with 'Unrelated question'.\n"
+            "If you're asked a question that does not relate to your context, do not answer it - instead, answer by saying you're only familiar with <the topic in your context>.\n"
             )
         
-        context = retrieve(prompt, top_k=5)
+        context = self.rag_helper.retrieve(prompt, top_k=5)
         return self._chain().invoke({
             'context': context,
             'task':task,
@@ -91,3 +93,10 @@ class StudyLLM:
             'task': task,
             'input': f"summary length: {request.length.value}"
         })
+        
+    
+    def cleanup(self):
+        """
+        Cleanup resources used by the LLM.
+        """
+        self.rag_helper.cleanup()

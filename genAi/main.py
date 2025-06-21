@@ -1,18 +1,18 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-import os
-from rag import rag_cleanup
 from request_models import PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
 from llm import StudyLLM
 
 
+llm_instances: dict[str, StudyLLM] = {}
 
 @asynccontextmanager
 async def lifespan(_):
     # Startup: init stuff if needed
     yield
     # Shutdown: cleanup
-    rag_cleanup()
+    for llm in llm_instances.values():
+        llm.cleanup()
 
 app = FastAPI(
     title="tutor",
@@ -34,7 +34,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-llm = StudyLLM()
+llm_instances["dummy"] = StudyLLM("./documents/example/W07_Microservices_and_Scalable_Architectures.pdf") # TODO: remove
 
 @app.get("/health")
 async def health_check():
@@ -49,7 +49,8 @@ async def receive_prompt(data: PromptRequest):
     """
     Receive a prompt and return a response from the LLM.
     """
-    response = llm.prompt(data.message)
+    # TODO: Get or create an LLM instance based on the session data in the request.
+    response = llm_instances["dummy"].prompt(data.message)
     return {"response": response}
 
 @app.post("/summary")
@@ -57,7 +58,8 @@ async def receive_prompt(data: SummaryRequest):
     """
     Receive a summary reuest and return a summary from the LLM.
     """
-    response = llm.summarize(data)
+    # TODO: Get or create an LLM instance based on the session data in the request.
+    response = llm_instances["dummy"].summarize(data)
     return {"response": response}
 
 @app.post("/flashcard")
@@ -73,9 +75,3 @@ async def receive_prompt(data: QuizRequest):
     Receive a quiz request and return a quiz object from the LLM.
     """
     return {"message": 'to be implemented'}
-
-
-# Shut down clean up
-@app.on_event("shutdown")
-def close_weaviate():
-    weaviate_client.close()
