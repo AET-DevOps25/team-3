@@ -1,5 +1,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain.chains.summarize import load_summarize_chain
+from langchain.prompts import PromptTemplate
 
 from dotenv import load_dotenv
 import os
@@ -78,21 +80,42 @@ class StudyLLM:
             'input':prompt
             }).content
 
-    def summarize(self, request: SummaryRequest):
+    def summarize(self):
         """
         Summarize the given document using the LLM.
-        
-        Args:
-            request (SummaryRequest): The request containing summary preferences.
         
         Returns:
             str: The summary of the document.
         """
-        task = "to summarize the text in your knowledge."
-        return self._chain(output_model=SummaryResponse).invoke({
-            'task': task,
-            'input': f"summary length: {request.length.value}"
-        })
+        
+        map_prompt = PromptTemplate.from_template(
+            (
+            f"Write a medium length summary of the following:\n\n"
+            "{text}"
+            )
+        )
+
+        combine_prompt = PromptTemplate.from_template(
+            f"""
+                Combine the following summaries into one medium length summary **formatted in valid Markdown**.
+                Use headings, bullet points, bold/italic text, etc. if appropriate.
+                Do not add any preamble or closing sentence.
+
+                Summaries:
+                {{text}}
+                """
+        )
+
+        chain = load_summarize_chain(
+            self.llm,
+            chain_type="map_reduce",
+            map_prompt=map_prompt,
+            combine_prompt=combine_prompt
+        )
+
+        result = chain.invoke({"input_documents": self.rag_helper.summary_chunks})
+        
+        return result["output_text"]
         
     
     def cleanup(self):

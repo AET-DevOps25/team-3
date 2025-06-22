@@ -3,6 +3,7 @@ from langchain_community.document_loaders import PyMuPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate.vectorstores import WeaviateVectorStore
 from langchain_cohere import CohereEmbeddings
+from langchain_core.documents import Document
 from dotenv import load_dotenv
 import os
 
@@ -18,8 +19,10 @@ def _get_loader(doc_path: str):
     if not os.path.exists(doc_path):
         raise FileNotFoundError(f"The document path {doc_path} does not exist.")
     if doc_path.endswith('.pdf'):
+        print(f"Loading PDF file: {doc_path}")
         return PyMuPDFLoader(doc_path)
     elif doc_path.endswith('.txt'):
+        print(f"Loading text file: {doc_path}")
         return TextLoader(doc_path)
     else:
         raise ValueError("Unsupported file type. Please provide a .pdf or .txt file.")
@@ -38,8 +41,9 @@ class RAGHelper:
         
         documents = loader.load()
         # Split document into smaller chunks
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        split_documents = text_splitter.split_documents(documents)
+        retrieval_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+        split_documents = retrieval_splitter.split_documents(documents)
+        
         # Initialize embeddings model
         load_dotenv()
         embeddings_model = CohereEmbeddings(model="embed-english-light-v3.0", cohere_api_key=os.getenv("COHERE_API_KEY"))
@@ -47,6 +51,13 @@ class RAGHelper:
         # Initialize Weaviate client
         self.weaviate_client = weaviate.connect_to_local()
         self.db = WeaviateVectorStore.from_documents(split_documents, embeddings_model, client=self.weaviate_client)
+        # Split documents for summarization, flashcards, and quiz generation.
+        ## combine all documents into a single text (avoid 1 document per page)
+        full_text = "\n\n".join([doc.page_content for doc in documents])
+        combined_doc = Document(page_content=full_text)
+        summary_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
+        self.summary_chunks = summary_splitter.split_documents([combined_doc])
+        print(f"summary_chunks: {len(self.summary_chunks)}")
 
     def retrieve(self, query: str, top_k: int = 5):
         """
