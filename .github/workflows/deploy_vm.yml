@@ -44,6 +44,22 @@ jobs:
           docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genAi
           docker push ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA}
 
+      # Tag and push as latest
+      - name: Tag and push client as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/client:latest
+          docker push ghcr.io/aet-devops25/team-3/client:latest
+
+      - name: Tag and push server as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/server:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/server:latest
+          docker push ghcr.io/aet-devops25/team-3/server:latest
+
+      - name: Tag and push genai as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai:latest
+          docker push ghcr.io/aet-devops25/team-3/genai:latest
+
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
@@ -73,3 +89,52 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_ACTOR: ${{ github.actor }}
         run: ansible-playbook -i inventory.ini deploy/ansible/deploy.yml
+
+  deploy-k8s:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    env:
+      COMMIT_SHA: ${{ github.sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.12.0'
+
+      - name: Deploy to Kubernetes
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # Deploy using Helm - this will fail the job if deployment fails
+          helm upgrade --install studymate ./infra/studymate \
+            --namespace team-3 \
+            --set global.teamid=team-3 \
+            --set global.imageTag=latest \
+            --set secrets.postgresPassword="${POSTGRES_PASSWORD}" \
+            --set secrets.openaiApiKey="${OPENAI_API_KEY}" \
+            --set secrets.jwtSecret="${JWT_SECRET}" \
+            --set secrets.databaseUrl="${DATABASE_URL}" \
+            --wait --timeout=10m
+          
+          echo "✅ Kubernetes deployment completed successfully!"
+          echo "Your app should be available at: https://team-3.k8s.aet.cit.tum.de"
+
+  
