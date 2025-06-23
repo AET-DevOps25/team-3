@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:13
+    container_name: studymate-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: studymate
+      POSTGRES_USER: studymate_user
+      POSTGRES_PASSWORD: studymate_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./server/src/main/resources/database_setup.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studymate_user -d studymate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data: 
