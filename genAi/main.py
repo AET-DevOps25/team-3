@@ -68,7 +68,8 @@ async def receive_prompt(data: FlashcardRequest):
     """
     Receive a flashcard request and return flashcard objects from the LLM.
     """
-    return {"message": 'to be implemented'}
+    response = await llm_instances["dummy"].generate_flashcards()
+    return {"response": response}
 
 @app.post("/quiz")
 async def receive_prompt(data: QuizRequest):
