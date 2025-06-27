@@ -76,4 +76,5 @@ async def receive_prompt(data: QuizRequest):
     """
     Receive a quiz request and return a quiz object from the LLM.
     """
-    return {"message": 'to be implemented'}
+    response = await llm_instances["dummy"].generate_quiz()
+    return {"response": response}

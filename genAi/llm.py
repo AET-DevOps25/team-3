@@ -8,7 +8,7 @@ import os
 
 from pydantic import BaseModel
 
-from chains import FlashcardChain
+from chains import FlashcardChain, QuizChain
 from response_models import FlashcardResponse
 from request_models import SummaryRequest
 
@@ -127,6 +127,17 @@ class StudyLLM:
         flashcard_chain = FlashcardChain(self.llm)
         cards = await flashcard_chain.invoke(self.rag_helper.summary_chunks)
         return cards
+    
+    async def generate_quiz(self):
+        """
+        Generate a quiz from the document using the LLM.
+        
+        Returns:
+            list: A quiz object.
+        """
+        quiz_chain = QuizChain(self.llm)
+        quiz = await quiz_chain.invoke(self.rag_helper.summary_chunks)
+        return quiz
     
     def cleanup(self):
         """
