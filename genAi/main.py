@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from request_models import PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
+from helpers import save_document
+from request_models import CreateSessionRequest, PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
 from llm import StudyLLM
 
 
@@ -45,13 +46,31 @@ async def health_check():
     except Exception as e:
         return {"status": "unhealthy", "error": str(e)}
 
+
+@app.post("/session/load")
+async def load_session(data: CreateSessionRequest):
+    """
+    Create a new session with the LLM for a given document URL.
+    """
+    if data.session_id in llm_instances:
+        return {"message": "Session already loaded."}
+    
+    try:
+        doc_name = f"{data.session_id}_{data.document_name}"
+        path = save_document(doc_name, data.document_base64)
+        llm_instances[data.session_id] = StudyLLM(path)
+        return {"message": "Session created successfully."}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.post("/chat")
 async def receive_prompt(data: PromptRequest):
     """
     Receive a prompt and return a response from the LLM.
     """
     # TODO: Get or create an LLM instance based on the session data in the request.
-    response = llm_instances["dummy"].prompt(data.message)
+    response = llm_instances[data.session_id].prompt(data.message)
     return {"response": response}
 
 @app.post("/summary")
@@ -60,7 +79,7 @@ async def receive_prompt(data: SummaryRequest):
     Receive a summary reuest and return a summary from the LLM.
     """
     # TODO: Get or create an LLM instance based on the session data in the request.
-    response = llm_instances["dummy"].summarize()
+    response = llm_instances[data.session_id].summarize()
     return {"response": response}
 
 @app.post("/flashcard")
@@ -68,7 +87,7 @@ async def receive_prompt(data: FlashcardRequest):
     """
     Receive a flashcard request and return flashcard objects from the LLM.
     """
-    response = await llm_instances["dummy"].generate_flashcards()
+    response = await llm_instances[data.session_id].generate_flashcards()
     return {"response": response}
 
 @app.post("/quiz")
@@ -76,5 +95,5 @@ async def receive_prompt(data: QuizRequest):
     """
     Receive a quiz request and return a quiz object from the LLM.
     """
-    response = await llm_instances["dummy"].generate_quiz()
+    response = await llm_instances[data.session_id].generate_quiz()
     return {"response": response}

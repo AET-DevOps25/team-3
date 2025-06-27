@@ -6,6 +6,7 @@ from langchain_cohere import CohereEmbeddings
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 import os
+from helpers import delete_document
 
 
 def _get_loader(doc_path: str):
@@ -40,6 +41,8 @@ class RAGHelper:
             raise ValueError(f"Error loading document: {e}")
         
         documents = loader.load()
+        print("Current working dir DEL:", os.getcwd())
+        delete_document(doc_path)
         # Split document into smaller chunks
         retrieval_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         split_documents = retrieval_splitter.split_documents(documents)

@@ -1,8 +1,19 @@
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+
+class BaseLLMRequest(BaseModel):
+    """
+    Base class for all LLM requests.
+    """
+    session_id: str
+
+# Create session request
+class CreateSessionRequest(BaseLLMRequest):
+    document_name: str
+    document_base64: str
 
 # Chat prompt request
-class PromptRequest(BaseModel):
+class PromptRequest(BaseLLMRequest):
     message: str
     
 # Summary request
@@ -11,13 +22,15 @@ class SummaryLength(str, Enum):
     medium = "medium"
     long = "long"
     
-class SummaryRequest(BaseModel):
-    length: SummaryLength
+class SummaryRequest(BaseLLMRequest):
+    # length: SummaryLength
+    pass
 
 
 # Flashcard request
-class FlashcardRequest(BaseModel):
-    count: int = Field(default=10, ge=1, le=35)
+class FlashcardRequest(BaseLLMRequest):
+    # count: int = Field(default=10, ge=1, le=35)
+    pass
     
 # Quiz request
 class QuizDifficulty(str, Enum):
@@ -25,6 +38,7 @@ class QuizDifficulty(str, Enum):
     medium = "medium"
     hard = "hard"
 
-class QuizRequest(BaseModel):
-    question_count: int = Field(default=5, ge=1, le=20)
-    difficulty: QuizDifficulty
+class QuizRequest(BaseLLMRequest):
+    # question_count: int = Field(default=5, ge=1, le=20)
+    # difficulty: QuizDifficulty
+    pass
