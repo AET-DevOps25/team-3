@@ -1,0 +1,112 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard port
+    volumes:
+      # Mount the static configuration files into the container
+      - "./traefik/traefik-dev.yml:/etc/traefik/traefik.yml:ro"
+      - "./traefik/acme.json:/letsencrypt/acme.json"
+      # Mount the Docker socket
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - proxy
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.rule=Host(`localhost`)"
+      - "traefik.http.routers.client.entrypoints=web"
+      - "traefik.http.services.client.loadbalancer.server.port=80"
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.server.rule=Host(`localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.server.entrypoints=web"
+      - "traefik.http.services.server.loadbalancer.server.port=8080"
+    environment: # TODO: replace values with an env variables & secrets
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/mydb
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=placeholder
+    depends_on:
+      - postgres
+      - weaviate
+
+  genai:
+    build:
+      context: ./genAi
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.genai.rule=Host(`localhost`) && PathPrefix(`/genai`)"
+      - "traefik.http.routers.genai.entrypoints=web"
+      - "traefik.http.services.genai.loadbalancer.server.port=8081"
+    depends_on:
+      - weaviate
+
+  postgres:
+    image: postgres:15
+    ports: # TODO: remove?
+      - "5432:5432"
+    environment: # TODO: replace values with an env variables & secrets
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - proxy
+
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8082'
+      - --scheme
+      - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
+    ports: # TODO: remove?
+      - 8082:8082
+      - 50051:50051
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - proxy
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      ENABLE_API_BASED_MODULES: 'true'
+      CLUSTER_HOSTNAME: 'node1'
+
+volumes:
+  pgdata:
+  weaviate_data:
+
+networks:
+  proxy:
+    name: proxy-net 

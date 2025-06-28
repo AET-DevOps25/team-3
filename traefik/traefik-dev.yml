@@ -1,0 +1,15 @@
+log:
+  level: INFO
+
+api:
+  # Enable the API and dashboard
+  insecure: true
+  dashboard: true
+
+providers:
+  docker:
+    exposedByDefault: false
+
+entryPoints:
+  web:
+    address: ":80" 
