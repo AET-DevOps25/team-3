@@ -1,5 +1,6 @@
 import base64
 import os
+import logging
 
 
 def save_document(document_name: str, document_base64: str) -> str:
@@ -22,8 +23,7 @@ def save_document(document_name: str, document_base64: str) -> str:
     with open(file_path, "wb") as file:
         file.write(document_bytes)
     
-    print("Current working dir:", os.getcwd())
-    print(f"Document {document_name} saved successfully at {file_path}")
+    logging.info(f"Document {document_name} saved successfully at {file_path}")
     return file_path
 
 def delete_document(document_path: str):
@@ -36,6 +36,6 @@ def delete_document(document_path: str):
     
     if os.path.exists(document_path):
         os.remove(document_path)
-        print(f"Document {document_path} deleted successfully.")
+        logging.info(f"Document {document_path} deleted successfully.")
     else:
-        print(f"Document {document_path} does not exist.")
+        logging.warning(f"Document {document_path} does not exist.")

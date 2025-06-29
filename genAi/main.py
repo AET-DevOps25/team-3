@@ -36,7 +36,7 @@ app = FastAPI(
 )
 
 llm_instances["dummy"] = StudyLLM("./documents/example/W07_Microservices_and_Scalable_Architectures.pdf") # TODO: remove
-# llm_instances["dummy"] = StudyLLM("./documents/example/dummy_knowledge.txt") # TODO: remove
+# llm_instances["dummy2"] = StudyLLM("./documents/example/dummy_knowledge.txt") # TODO: remove
 
 @app.get("/health")
 async def health_check():
@@ -69,7 +69,6 @@ async def receive_prompt(data: PromptRequest):
     """
     Receive a prompt and return a response from the LLM.
     """
-    # TODO: Get or create an LLM instance based on the session data in the request.
     response = llm_instances[data.session_id].prompt(data.message)
     return {"response": response}
 
@@ -78,7 +77,6 @@ async def receive_prompt(data: SummaryRequest):
     """
     Receive a summary reuest and return a summary from the LLM.
     """
-    # TODO: Get or create an LLM instance based on the session data in the request.
     response = llm_instances[data.session_id].summarize()
     return {"response": response}
 
