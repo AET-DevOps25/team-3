@@ -9,10 +9,15 @@ from dotenv import load_dotenv
 import os
 from helpers import delete_document
 import logging
+from langchain_huggingface import HuggingFaceEmbeddings
 
 # Setup shared embeddings model
 load_dotenv()
-embeddings_model = CohereEmbeddings(model="embed-english-light-v3.0", cohere_api_key=os.getenv("COHERE_API_KEY")) # TODO: replace with huggingface embeddings model
+embeddings_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+# embeddings_model_cohere = CohereEmbeddings(model="embed-english-light-v3.0", cohere_api_key=os.getenv("COHERE_API_KEY"))
+
+# Disable Huggingface's tokenizer parallelism (avoid deadlocks caused by process forking in langchain)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def _get_loader(doc_path: str):
