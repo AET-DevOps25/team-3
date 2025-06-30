@@ -14,7 +14,7 @@ interface UploadedFileInfo {
 }
 
 interface UploadSectionProps {
-  onFileUpload: (files: File[]) => void;
+  onFileUpload: (files: File[], documentIds: string[]) => void;
   uploadedFiles: File[];
   onContinue: () => void;
 }
@@ -106,7 +106,7 @@ const UploadSection = ({ onFileUpload, uploadedFiles, onContinue }: UploadSectio
       );
 
       // Call the original callback for parent component
-      onFileUpload(files);
+      onFileUpload(files, response.documentIds);
 
       toast({
         title: 'Upload successful!',

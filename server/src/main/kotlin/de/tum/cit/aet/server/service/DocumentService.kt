@@ -3,15 +3,32 @@ package de.tum.cit.aet.server.service
 import de.tum.cit.aet.server.dto.*
 import de.tum.cit.aet.server.entity.DocumentEntity
 import de.tum.cit.aet.server.repository.DocumentRepository
+import org.springframework.context.ApplicationEventPublisher
+import org.springframework.context.event.EventListener
+import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.event.TransactionPhase
+import org.springframework.transaction.event.TransactionalEventListener
 import org.springframework.web.multipart.MultipartFile
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
+import java.util.concurrent.CompletableFuture
+
+// Event class for document upload completion
+data class DocumentUploadedEvent(
+    val documentId: String,
+    val fileName: String,
+    val fileContent: ByteArray
+)
 
 @Service
-class DocumentService(private val documentRepository: DocumentRepository) {
+class DocumentService(
+    private val documentRepository: DocumentRepository,
+    private val genAiService: GenAiService,
+    private val eventPublisher: ApplicationEventPublisher
+) {
     
     @Transactional
     fun uploadFiles(files: Array<MultipartFile>): DocumentUploadResponse {
@@ -46,6 +63,15 @@ class DocumentService(private val documentRepository: DocumentRepository) {
                 documentRepository.save(documentEntity)
                 documentIds.add(documentId)
                 
+                // Publish event for async processing AFTER transaction commits
+                eventPublisher.publishEvent(
+                    DocumentUploadedEvent(
+                        documentId = documentId,
+                        fileName = file.originalFilename ?: "unknown",
+                        fileContent = file.bytes
+                    )
+                )
+                
             } catch (e: Exception) {
                 errors.add("Error uploading file ${file.originalFilename}: ${e.message}")
             }
@@ -60,6 +86,23 @@ class DocumentService(private val documentRepository: DocumentRepository) {
             documentIds = documentIds,
             status = if (errors.isEmpty()) "success" else "partial_success"
         )
+    }
+    
+    // This handler runs AFTER the transaction commits
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Async
+    fun handleDocumentUploaded(event: DocumentUploadedEvent) {
+        println("Starting async processing for document: ${event.fileName} (ID: ${event.documentId})")
+        try {
+            // Verify document exists before processing
+            if (documentRepository.existsById(event.documentId)) {
+                processDocumentAsync(event.documentId, event.fileName, event.fileContent)
+            } else {
+                println("Document ${event.documentId} not found after transaction commit!")
+            }
+        } catch (e: Exception) {
+            println("Error starting async processing for document ${event.fileName}: ${e.message}")
+        }
     }
     
     fun getDocumentStatus(documentId: String): DocumentStatusResponse {
@@ -136,6 +179,64 @@ class DocumentService(private val documentRepository: DocumentRepository) {
             throw RuntimeException("Document not found with ID: $documentId")
         }
         documentRepository.deleteById(documentId)
+    }
+    
+    @Async
+    fun processDocumentAsync(documentId: String, fileName: String, fileContent: ByteArray): CompletableFuture<Void> {
+        return CompletableFuture.runAsync {
+            try {
+                println("Processing document async: $fileName (ID: $documentId)")
+                
+                // Update status to PROCESSING
+                updateDocumentStatus(documentId, DocumentStatus.PROCESSING)
+                
+                // Create session in GenAI service
+                println("Creating GenAI session for document: $fileName")
+                val sessionResult = genAiService.createSession(documentId, fileName, fileContent)
+                
+                if (sessionResult != null) {
+                    println("GenAI session created successfully")
+                    
+                    // Generate summary
+                    println("Generating summary for document: $fileName")
+                    val summary = genAiService.generateSummary(documentId)
+                    
+                    if (summary != null) {
+                        println("Summary generated successfully")
+                        // Update document with summary and mark as processed
+                        updateDocumentContent(documentId, summary, null)
+                        updateDocumentStatus(documentId, DocumentStatus.READY)
+                    } else {
+                        println("Failed to generate summary")
+                        updateDocumentStatus(documentId, DocumentStatus.ERROR)
+                    }
+                } else {
+                    println("Failed to create GenAI session")
+                    updateDocumentStatus(documentId, DocumentStatus.ERROR)
+                }
+                
+            } catch (e: Exception) {
+                println("Error processing document $fileName: ${e.message}")
+                e.printStackTrace()
+                updateDocumentStatus(documentId, DocumentStatus.ERROR)
+            }
+        }
+    }
+    
+    @Transactional
+    fun updateDocumentStatus(documentId: String, status: DocumentStatus) {
+        try {
+            val documentEntity = documentRepository.findById(documentId)
+                .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+            
+            documentEntity.status = status
+            documentEntity.updatedAt = LocalDateTime.now()
+            documentRepository.save(documentEntity)
+            println("Updated document $documentId status to $status")
+        } catch (e: Exception) {
+            println("Error updating document $documentId status: ${e.message}")
+            throw e
+        }
     }
     
     private fun extractFileType(fileName: String): String {

@@ -4,30 +4,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageSquare, Send, Bot, User, Sparkles, FileText, Clock } from 'lucide-react';
+import { apiService, ChatMessage, ChatSessionResponse } from '@/lib/api';
 
 interface ChatTabProps {
   uploadedFiles: File[];
+  documentIds: string[];
 }
 
-interface Message {
-  id: string;
-  content: string;
-  sender: 'user' | 'bot';
-  timestamp: Date;
-  sources?: string[];
-}
-
-const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: "Hi! I'm your AI study assistant. I've analyzed your uploaded course materials and I'm ready to help you understand the concepts, clarify doubts, and answer questions. What would you like to know?",
-      sender: 'bot',
-      timestamp: new Date(),
-    }
-  ]);
+const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -38,55 +27,64 @@ const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
     scrollToBottom();
   }, [messages]);
 
-  const simulateBotResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('machine learning') || lowerMessage.includes('ml')) {
-      return "Machine Learning is a subset of artificial intelligence that enables computers to learn and make decisions from data without being explicitly programmed. Based on your uploaded materials, I can see you're studying supervised learning (which uses labeled data) and unsupervised learning (which finds patterns in unlabeled data). Would you like me to explain any specific ML algorithm or concept?";
-    }
-    
-    if (lowerMessage.includes('overfitting')) {
-      return "Overfitting occurs when a model learns the training data too well, including noise and irrelevant details. This means it performs great on training data but poorly on new, unseen data. It's like memorizing answers to practice questions without understanding the concepts - you'd fail when faced with new questions. To prevent overfitting, we can use techniques like cross-validation, regularization, or reducing model complexity.";
-    }
-    
-    if (lowerMessage.includes('probability') || lowerMessage.includes('distribution')) {
-      return "From your Statistics materials, I can help explain probability distributions! The normal distribution is bell-shaped and describes many natural phenomena. The binomial distribution models scenarios with yes/no outcomes (like coin flips), while the Poisson distribution describes rare events over time (like customer arrivals). Which specific distribution would you like me to explain in more detail?";
-    }
-    
-    if (lowerMessage.includes('quiz') || lowerMessage.includes('test')) {
-      return "I'd be happy to help you prepare for your quiz! Based on your materials, I can create practice questions on machine learning fundamentals or probability distributions. I can also explain concepts that commonly appear on exams. What specific topic would you like to focus on for your test preparation?";
-    }
-    
-    return "That's a great question! Based on your course materials, I can provide detailed explanations about the concepts you're studying. Could you be more specific about which topic you'd like me to explain? I have information about machine learning algorithms, probability distributions, and statistical concepts from your uploaded files.";
-  };
+  // Initialize chat session when component mounts or documentIds change
+  useEffect(() => {
+    const initializeChatSession = async () => {
+      if (documentIds.length > 0 && !sessionId) {
+        setIsLoading(true);
+        try {
+          const response = await apiService.createChatSession(documentIds);
+          setSessionId(response.sessionId);
+          setMessages(response.messages);
+        } catch (error) {
+          console.error('Failed to create chat session:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    initializeChatSession();
+  }, [documentIds, sessionId]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
+    if (!inputMessage.trim() || !sessionId) return;
 
-    const userMessage: Message = {
+    const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content: inputMessage,
       sender: 'user',
-      timestamp: new Date(),
+      timestamp: new Date().toISOString(),
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsTyping(true);
 
-    // Simulate AI response delay
-    setTimeout(() => {
-      const botResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        content: simulateBotResponse(inputMessage),
+    try {
+      const response = await apiService.sendMessage(sessionId, inputMessage, documentIds);
+      const botMessage: ChatMessage = {
+        id: response.id,
+        content: response.content,
         sender: 'bot',
-        timestamp: new Date(),
-        sources: ['Machine Learning Lecture 1.pdf', 'Statistics Chapter 5.pdf']
+        timestamp: response.timestamp,
+        sources: response.sources,
+        documentReferences: response.documentReferences
       };
 
-      setMessages(prev => [...prev, botResponse]);
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: 'Sorry, I encountered an error while processing your message. Please try again.',
+        sender: 'bot',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const suggestedQuestions = [
@@ -96,7 +94,7 @@ const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
     "Create a quiz question about machine learning"
   ];
 
-  if (uploadedFiles.length === 0) {
+  if (documentIds.length === 0) {
     return (
       <Card className="text-center py-12">
         <CardContent>
@@ -104,6 +102,18 @@ const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
           <h3 className="text-xl font-semibold text-gray-900 mb-2">AI Chat not available</h3>
           <p className="text-gray-600 mb-6">Upload your course materials to chat with your AI tutor</p>
           <Button variant="outline">Go to Upload Tab</Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <Card className="text-center py-12">
+        <CardContent>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Initializing Chat</h3>
+          <p className="text-gray-600">Setting up your AI study assistant...</p>
         </CardContent>
       </Card>
     );
@@ -123,11 +133,11 @@ const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
               <CardDescription className="flex items-center space-x-4">
                 <span className="flex items-center">
                   <FileText className="h-3 w-3 mr-1" />
-                  {uploadedFiles.length} files analyzed
+                  {documentIds.length} files analyzed
                 </span>
                 <span className="flex items-center text-green-600">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                  Online
+                  {sessionId ? 'Online' : 'Connecting...'}
                 </span>
               </CardDescription>
             </div>
@@ -174,7 +184,7 @@ const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
                     {/* Sources and Timestamp */}
                     <div className="flex items-center space-x-2 text-xs text-gray-500">
                       <Clock className="h-3 w-3" />
-                      <span>{message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span>{new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                       {message.sources && (
                         <>
                           <span>•</span>
@@ -236,13 +246,14 @@ const ChatTab = ({ uploadedFiles }: ChatTabProps) => {
               <Input
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Ask a question about your course materials..."
+                placeholder={sessionId ? "Ask a question about your course materials..." : "Connecting to chat service..."}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                disabled={!sessionId}
                 className="flex-1"
               />
               <Button 
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isTyping}
+                disabled={!inputMessage.trim() || isTyping || !sessionId}
                 className="bg-blue-500 hover:bg-blue-600"
               >
                 <Send className="h-4 w-4" />
