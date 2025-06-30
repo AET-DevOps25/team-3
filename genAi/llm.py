@@ -8,8 +8,9 @@ import os
 
 from pydantic import BaseModel
 
+from chains import FlashcardChain, QuizChain
+from response_models import FlashcardResponse
 from request_models import SummaryRequest
-from response_models import SummaryResponse
 
 from rag import RAGHelper
 
@@ -17,7 +18,6 @@ load_dotenv()
 
 
 class StudyLLM:
-    
     llm = ChatOpenAI(
         model="llama3.3:latest",
         temperature=0.5,
@@ -117,6 +117,27 @@ class StudyLLM:
         
         return result["output_text"]
         
+    async def generate_flashcards(self):
+        """
+        Generate flashcards from the document using the LLM.
+        
+        Returns:
+            list: A list of flashcard objects.
+        """
+        flashcard_chain = FlashcardChain(self.llm)
+        cards = await flashcard_chain.invoke(self.rag_helper.summary_chunks)
+        return cards
+    
+    async def generate_quiz(self):
+        """
+        Generate a quiz from the document using the LLM.
+        
+        Returns:
+            list: A quiz object.
+        """
+        quiz_chain = QuizChain(self.llm)
+        quiz = await quiz_chain.invoke(self.rag_helper.summary_chunks)
+        return quiz
     
     def cleanup(self):
         """

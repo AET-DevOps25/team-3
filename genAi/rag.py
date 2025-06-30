@@ -1,4 +1,5 @@
 import weaviate
+from weaviate.classes.query import Filter
 from langchain_community.document_loaders import PyMuPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate.vectorstores import WeaviateVectorStore
@@ -6,6 +7,17 @@ from langchain_cohere import CohereEmbeddings
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 import os
+from helpers import delete_document
+import logging
+from langchain_huggingface import HuggingFaceEmbeddings
+
+# Setup shared embeddings model
+load_dotenv()
+embeddings_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+# embeddings_model_cohere = CohereEmbeddings(model="embed-english-light-v3.0", cohere_api_key=os.getenv("COHERE_API_KEY"))
+
+# Disable Huggingface's tokenizer parallelism (avoid deadlocks caused by process forking in langchain)
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 def _get_loader(doc_path: str):
@@ -19,10 +31,10 @@ def _get_loader(doc_path: str):
     if not os.path.exists(doc_path):
         raise FileNotFoundError(f"The document path {doc_path} does not exist.")
     if doc_path.endswith('.pdf'):
-        print(f"Loading PDF file: {doc_path}")
+        logging.info(f"Loading PDF file: {doc_path}")
         return PyMuPDFLoader(doc_path)
     elif doc_path.endswith('.txt'):
-        print(f"Loading text file: {doc_path}")
+        logging.info(f"Loading text file: {doc_path}")
         return TextLoader(doc_path)
     else:
         raise ValueError("Unsupported file type. Please provide a .pdf or .txt file.")
@@ -40,24 +52,53 @@ class RAGHelper:
             raise ValueError(f"Error loading document: {e}")
         
         documents = loader.load()
+        delete_document(doc_path) # Delete uploaded document after loading
+        doc_metadata = {
+            "source": doc_path,
+        }
         # Split document into smaller chunks
-        retrieval_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-        split_documents = retrieval_splitter.split_documents(documents)
+        
+        split_documents = self._split_and_attach_metadata(documents, doc_metadata)
         
         # Initialize embeddings model
-        load_dotenv()
-        embeddings_model = CohereEmbeddings(model="embed-english-light-v3.0", cohere_api_key=os.getenv("COHERE_API_KEY"))
 
         # Initialize Weaviate client
         self.weaviate_client = weaviate.connect_to_local()
-        self.db = WeaviateVectorStore.from_documents(split_documents, embeddings_model, client=self.weaviate_client)
+        self.db = WeaviateVectorStore.from_documents(split_documents, embeddings_model, client=self.weaviate_client, index_name="UserDocsIndex")
+        self.doc_path = doc_path # Store the document path for retrieval filtering
         # Split documents for summarization, flashcards, and quiz generation.
         ## combine all documents into a single text (avoid 1 document per page)
         full_text = "\n\n".join([doc.page_content for doc in documents])
         combined_doc = Document(page_content=full_text)
-        summary_splitter = RecursiveCharacterTextSplitter(chunk_size=4000, chunk_overlap=200)
-        self.summary_chunks = summary_splitter.split_documents([combined_doc])
-        print(f"summary_chunks: {len(self.summary_chunks)}")
+        self.summary_chunks = self._split_and_attach_metadata(
+            [combined_doc],
+            doc_metadata,
+            chunk_size=4000,
+            chunk_overlap=200
+        )
+
+
+    def _split_and_attach_metadata(self,
+                                   documents: list[Document],
+                                   metadata: dict,
+                                   chunk_size: int = 1000,
+                                   chunk_overlap: int = 200):
+        """
+        Split documents into smaller chunks and attach metadata.
+        
+        Args:
+            documents (list[Document]): List of documents to split.
+            metadata (dict): Metadata to attach to each document chunk.
+        
+        Returns:
+            list[Document]: List of document chunks with attached metadata.
+        """
+        splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        split_docs = splitter.split_documents(documents)
+        for i, doc in enumerate(split_docs):
+            doc.metadata.update(metadata)
+            doc.metadata['chunk_index'] = i
+        return split_docs
 
     def retrieve(self, query: str, top_k: int = 5):
         """
@@ -70,7 +111,8 @@ class RAGHelper:
         Returns:
             list: A list of retrieved documents.
         """
-        results = self.db.similarity_search(query, k=top_k)
+        doc_filter = Filter.by_property("source").equal(self.doc_path)
+        results = self.db.similarity_search(query, k=top_k, filters=doc_filter)
         return "\n\n".join([doc.page_content for doc in results])
 
 
@@ -79,5 +121,5 @@ class RAGHelper:
         Clean up the Weaviate client connection.
         """
         self.weaviate_client.close()
-        print("Weaviate client connection closed.")
+        logging.info("Weaviate client connection closed.")
     
