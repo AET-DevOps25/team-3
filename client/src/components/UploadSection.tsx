@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, X, CheckCircle, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { apiService, FileUploadResponse } from '@/lib/api';
+import { apiService, DocumentUploadResponse } from '@/lib/api';
 
 interface UploadedFileInfo {
   file: File;
@@ -88,7 +88,7 @@ const UploadSection = ({ onFileUpload, uploadedFiles, onContinue }: UploadSectio
       );
 
       // Upload files to backend
-      const response: FileUploadResponse = await apiService.uploadFiles(files);
+      const response: DocumentUploadResponse = await apiService.uploadFiles(files);
       
       // Update status to success
       setUploadingFiles(prev => 
@@ -98,7 +98,7 @@ const UploadSection = ({ onFileUpload, uploadedFiles, onContinue }: UploadSectio
             return {
               ...f,
               status: 'success' as const,
-              id: response.fileIds[index],
+              id: response.documentIds[index],
             };
           }
           return f;
@@ -138,7 +138,7 @@ const UploadSection = ({ onFileUpload, uploadedFiles, onContinue }: UploadSectio
   const removeFile = (index: number, fileInfo?: UploadedFileInfo) => {
     if (fileInfo?.id) {
       // If file has been uploaded to backend, delete it
-      apiService.deleteFile(fileInfo.id).catch(error => {
+      apiService.deleteDocument(fileInfo.id).catch(error => {
         console.error('Error deleting file:', error);
         toast({
           title: 'Delete failed',

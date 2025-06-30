@@ -103,25 +103,6 @@ services:
       ENABLE_API_BASED_MODULES: 'true'
       CLUSTER_HOSTNAME: 'node1'
 
-  document-service:
-    build:
-      context: ./server/document-service
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    networks:
-      - proxy
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.documentservice.rule=Host(`localhost`) && PathPrefix(`/api/v1/documents`)"
-      - "traefik.http.routers.documentservice.entrypoints=web"
-      - "traefik.http.services.documentservice.loadbalancer.server.port=8081"
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://documentdb:5432/documentdb
-      - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
-    depends_on:
-      - documentdb
-
   documentdb:
     image: postgres:15
     restart: unless-stopped
