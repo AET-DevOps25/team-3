@@ -1,0 +1,51 @@
+name: Build and Validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+
+jobs:
+  build-validation:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      COMMIT_SHA: ${{ github.sha }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build client (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
+          echo "✅ Client build successful"
+
+      - name: Build server (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/server:${COMMIT_SHA} ./server
+          echo "✅ Server build successful"
+
+      - name: Build genai (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genAi
+          echo "✅ GenAI build successful"
+
+      - name: Validation Summary
+        run: |
+          echo "🎉 All Docker images built successfully!"
+          echo "This was a validation build - no images were pushed to registry."
+          echo "Images will be built and pushed when merged to main branch." 
