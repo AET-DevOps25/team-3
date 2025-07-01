@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import type { DragEvent, ChangeEvent } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
 import { Upload, FileText, X, CheckCircle, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { apiService, DocumentUploadResponse } from '@/lib/api';
+import { useToast } from '../hooks/use-toast';
+import { apiService, DocumentUploadResponse } from '../lib/api';
 
 interface UploadedFileInfo {
   file: File;
