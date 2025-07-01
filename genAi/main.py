@@ -9,7 +9,6 @@ llm_instances: dict[str, StudyLLM] = {}
 
 @asynccontextmanager
 async def lifespan(_):
-    # Startup: init stuff if needed
     yield
     # Shutdown: cleanup
     for llm in llm_instances.values():
