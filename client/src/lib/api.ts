@@ -1,5 +1,5 @@
 // API service for communicating with the Spring Boot backend
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = 'http://localhost:8082';
 
 export interface DocumentUploadResponse {
   documentIds: string[];

@@ -11,7 +11,7 @@ services:
       - "8080:8080" # Dashboard port
     volumes:
       # Mount the static configuration files into the container
-      - "./traefik/traefik-dev.yml:/etc/traefik/traefik.yml:ro"
+      - "./traefik/traefik.yml:/etc/traefik/traefik.yml:ro"
       - "./traefik/acme.json:/letsencrypt/acme.json"
       # Mount the Docker socket
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
@@ -23,6 +23,8 @@ services:
       context: ./client
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "3000:80"  # Direct access for development
     networks:
       - proxy
     labels:
@@ -36,13 +38,15 @@ services:
       context: ./server
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "8082:8082"  # Direct access for development
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.server.rule=Host(`localhost`) && PathPrefix(`/api`)"
       - "traefik.http.routers.server.entrypoints=web"
-      - "traefik.http.services.server.loadbalancer.server.port=8080"
+      - "traefik.http.services.server.loadbalancer.server.port=8082"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/mydb
       - SPRING_DATASOURCE_USERNAME=postgres
@@ -56,6 +60,8 @@ services:
       context: ./genAi
       dockerfile: Dockerfile
     restart: unless-stopped
+    ports:
+      - "8081:8081"  # Direct access for development
     networks:
       - proxy
     labels:
@@ -63,6 +69,9 @@ services:
       - "traefik.http.routers.genai.rule=Host(`localhost`) && PathPrefix(`/genai`)"
       - "traefik.http.routers.genai.entrypoints=web"
       - "traefik.http.services.genai.loadbalancer.server.port=8081"
+    environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8083
     depends_on:
       - weaviate
 
@@ -84,12 +93,12 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - '8082'
+      - '8083'
       - --scheme
       - http
     image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
     ports: # TODO: remove?
-      - 8082:8082
+      - 8083:8083
       - 50051:50051
     volumes:
       - weaviate_data:/var/lib/weaviate
@@ -102,18 +111,6 @@ services:
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       ENABLE_API_BASED_MODULES: 'true'
       CLUSTER_HOSTNAME: 'node1'
-
-  documentdb:
-    image: postgres:15
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: documentdb
-    volumes:
-      - documentdb_data:/var/lib/postgresql/data
-    networks:
-      - proxy
 
 volumes:
   pgdata:

@@ -14,3 +14,5 @@ langchain-cohere
 pymupdf # for the PDF loader
 langchain_huggingface
 sentence-transformers
+requests
+langchain-core
