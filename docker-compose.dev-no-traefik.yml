@@ -1,0 +1,107 @@
+version: '3.8'
+
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_BASE_URL: http://localhost:8082
+        NODE_ENV: development
+    container_name: studymate-client-dev
+    restart: unless-stopped
+    ports:
+      - "3000:80"  # React app served via nginx
+    networks:
+      - dev-network
+    depends_on:
+      - server
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: studymate-server-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8082"  # Spring Boot API
+    networks:
+      - dev-network
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studymate
+      - SPRING_DATASOURCE_USERNAME=studymate_user
+      - SPRING_DATASOURCE_PASSWORD=studymate_password
+      - SPRING_PROFILES_ACTIVE=dev
+    depends_on:
+      - postgres
+      - weaviate
+      - genai
+
+  genai:
+    build:
+      context: ./genAi
+      dockerfile: Dockerfile
+    container_name: studymate-genai-dev
+    restart: unless-stopped
+    ports:
+      - "8081:8081"  # FastAPI GenAI service
+    networks:
+      - dev-network
+    environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8083
+      - PYTHONPATH=/app
+    depends_on:
+      - weaviate
+    volumes:
+      - ./genAi/documents:/app/documents  # Mount documents for development
+
+  postgres:
+    image: postgres:15
+    container_name: studymate-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"  # PostgreSQL database
+    environment:
+      POSTGRES_DB: studymate
+      POSTGRES_USER: studymate_user
+      POSTGRES_PASSWORD: studymate_password
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./server/src/main/resources/database_setup.sql:/docker-entrypoint-initdb.d/database_setup.sql
+    networks:
+      - dev-network
+
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
+    container_name: studymate-weaviate-dev
+    restart: unless-stopped
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8083'
+      - --scheme
+      - http
+    ports:
+      - "8083:8083"  # Weaviate vector database
+      - "50051:50051"  # gRPC port
+    volumes:
+      - weaviate_dev_data:/var/lib/weaviate
+    networks:
+      - dev-network
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      ENABLE_API_BASED_MODULES: 'true'
+      CLUSTER_HOSTNAME: 'node1'
+
+volumes:
+  postgres_dev_data:
+  weaviate_dev_data:
+
+networks:
+  dev-network:
+    driver: bridge
+    name: studymate-dev-network 
