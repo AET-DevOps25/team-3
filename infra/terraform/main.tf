@@ -72,8 +72,8 @@ resource "aws_security_group" "team_3_sg" {
 
   ingress {
     description = "Traefik Dashboard"
-    from_port   = 8080
-    to_port     = 8080
+    from_port   = 8082
+    to_port     = 8082
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }

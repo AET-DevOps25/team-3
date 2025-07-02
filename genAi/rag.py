@@ -45,6 +45,14 @@ class RAGHelper:
     """
     
     def __init__(self, doc_path: str):
+        # Initialize Weaviate client first
+        weaviate_host = os.getenv("WEAVIATE_HOST", "localhost")
+        weaviate_port = os.getenv("WEAVIATE_PORT", "8083")
+        self.weaviate_client = weaviate.connect_to_local(
+            host=weaviate_host,
+            port=int(weaviate_port),
+        )
+        
         # Load documents
         try:
             loader = _get_loader(doc_path)
@@ -62,8 +70,7 @@ class RAGHelper:
         
         # Initialize embeddings model
 
-        # Initialize Weaviate client
-        self.weaviate_client = weaviate.connect_to_local()
+        # Initialize Weaviate vector store
         self.db = WeaviateVectorStore.from_documents(split_documents, embeddings_model, client=self.weaviate_client, index_name="UserDocsIndex")
         self.doc_path = doc_path # Store the document path for retrieval filtering
         # Split documents for summarization, flashcards, and quiz generation.

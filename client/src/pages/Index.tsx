@@ -9,13 +9,23 @@ import DashboardSection from '@/components/DashboardSection';
 import HeroSection from '@/components/HeroSection';
 import FeaturesSection from '@/components/FeaturesSection';
 
+interface UploadedFileWithId {
+  file: File;
+  documentId: string;
+}
+
 const Index = () => {
   const [currentView, setCurrentView] = useState<'home' | 'dashboard'>('home');
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFileWithId[]>([]);
   const { toast } = useToast();
 
-  const handleFileUpload = (files: File[]) => {
-    setUploadedFiles(prev => [...prev, ...files]);
+  const handleFileUpload = (files: File[], documentIds: string[]) => {
+    const filesWithIds: UploadedFileWithId[] = files.map((file, index) => ({
+      file,
+      documentId: documentIds[index],
+    }));
+    
+    setUploadedFiles(prev => [...prev, ...filesWithIds]);
     setCurrentView('dashboard');
     toast({
       title: "Files uploaded successfully!",
