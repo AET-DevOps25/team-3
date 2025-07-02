@@ -1,0 +1,228 @@
+name: Staging Environment Management
+
+on:
+  pull_request:
+    types: [opened, synchronize, closed]
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  TF_VERSION: "1.5.0"
+
+jobs:
+  # Deploy staging environment when PR is opened or updated
+  deploy-staging:
+    if: github.event.action == 'opened' || github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init - Staging
+        working-directory: ./infra/terraform
+        run: |
+          terraform init -backend-config="key=infra/staging/terraform.tfstate"
+
+      - name: Terraform Plan - Staging
+        working-directory: ./infra/terraform
+        run: |
+          terraform plan -var="pr_number=${{ github.event.number }}" -out=tfplan
+
+      - name: Terraform Apply - Staging
+        working-directory: ./infra/terraform
+        run: |
+          terraform apply -auto-approve tfplan
+
+      - name: Get Staging IP
+        id: get-staging-ip
+        working-directory: ./infra/terraform
+        run: |
+          STAGING_IP=$(terraform output -raw staging_public_ip)
+          echo "STAGING_IP=$STAGING_IP" >> $GITHUB_ENV
+          echo "staging_ip=$STAGING_IP" >> $GITHUB_OUTPUT
+
+      - name: Build and Push Staging Images
+        env:
+          COMMIT_SHA: ${{ github.sha }}
+          PR_NUMBER: ${{ github.event.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          # Login to GitHub Container Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Build and push with PR-specific tags
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:pr-${{ github.event.number }}-${{ github.sha }} ./client
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/server:pr-${{ github.event.number }}-${{ github.sha }} ./server
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:pr-${{ github.event.number }}-${{ github.sha }} ./genAi
+          
+          docker push ghcr.io/aet-devops25/team-3/client:pr-${{ github.event.number }}-${{ github.sha }}
+          docker push ghcr.io/aet-devops25/team-3/server:pr-${{ github.event.number }}-${{ github.sha }}
+          docker push ghcr.io/aet-devops25/team-3/genai:pr-${{ github.event.number }}-${{ github.sha }}
+
+      - name: Deploy to Staging Server
+        env:
+          STAGING_IP: ${{ steps.get-staging-ip.outputs.staging_ip }}
+          PR_NUMBER: ${{ github.event.number }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          # Wait for instance to be ready
+          sleep 60
+          
+          # Setup SSH connection
+          echo "${{ secrets.LABUSER_SSH_BASE64 }}" | base64 -d > key.pem
+          chmod 400 key.pem
+          
+          # Create staging-specific docker-compose file
+          cat > docker-compose.staging.yml << EOF
+          version: '3.8'
+          services:
+            client:
+              image: ghcr.io/aet-devops25/team-3/client:pr-${{ github.event.number }}-${{ github.sha }}
+              ports:
+                - "3000:3000"
+              environment:
+                - REACT_APP_API_URL=http://${{ steps.get-staging-ip.outputs.staging_ip }}:8080
+              restart: unless-stopped
+              
+            server:
+              image: ghcr.io/aet-devops25/team-3/server:pr-${{ github.event.number }}-${{ github.sha }}
+              ports:
+                - "8080:8080"
+              environment:
+                - SPRING_PROFILES_ACTIVE=staging
+                - DATABASE_URL=${{ secrets.DATABASE_URL }}
+                - JWT_SECRET=${{ secrets.JWT_SECRET }}
+              restart: unless-stopped
+              
+            genai:
+              image: ghcr.io/aet-devops25/team-3/genai:pr-${{ github.event.number }}-${{ github.sha }}
+              ports:
+                - "8000:8000"
+              environment:
+                - OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+              restart: unless-stopped
+              
+            traefik:
+              image: traefik:v2.10
+              command:
+                - --api.insecure=true
+                - --providers.docker=true
+                - --entrypoints.web.address=:80
+                - --entrypoints.websecure.address=:443
+              ports:
+                - "80:80"
+                - "443:443"
+                - "8082:8080"
+              volumes:
+                - /var/run/docker.sock:/var/run/docker.sock
+              restart: unless-stopped
+          EOF
+          
+          # Deploy to staging server
+          scp -i key.pem -o StrictHostKeyChecking=no docker-compose.staging.yml ubuntu@${{ steps.get-staging-ip.outputs.staging_ip }}:/home/ubuntu/
+          ssh -i key.pem -o StrictHostKeyChecking=no ubuntu@${{ steps.get-staging-ip.outputs.staging_ip }} << 'EOF'
+            cd /home/ubuntu
+            docker-compose -f docker-compose.staging.yml down
+            docker-compose -f docker-compose.staging.yml up -d
+            docker system prune -f
+          EOF
+
+      - name: Comment PR with Staging URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const stagingUrl = `http://${{ steps.get-staging-ip.outputs.staging_ip }}:3000`;
+            const traefikUrl = `http://${{ steps.get-staging-ip.outputs.staging_ip }}:8082`;
+            
+            const comment = `## 🚀 Staging Environment Deployed!
+            
+            **Staging URL:** ${stagingUrl}
+            **Traefik Dashboard:** ${traefikUrl}
+            **PR Number:** #${{ github.event.number }}
+            **Commit:** \`${{ github.sha }}\`
+            
+            Your changes are now available for testing in the staging environment.
+            
+            ---
+            *This staging environment will be automatically cleaned up when this PR is closed.*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # Cleanup staging environment when PR is closed
+  cleanup-staging:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init - Staging
+        working-directory: ./infra/terraform
+        run: |
+          terraform init -backend-config="key=infra/staging/terraform.tfstate"
+
+      - name: Terraform Destroy - Staging
+        working-directory: ./infra/terraform
+        run: |
+          terraform destroy -auto-approve -var="pr_number=${{ github.event.number }}"
+
+      - name: Comment PR Cleanup
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## 🧹 Staging Environment Cleaned Up
+            
+            The staging environment for PR #${{ github.event.number }} has been successfully destroyed.
+            
+            **Resources cleaned up:**
+            - EC2 instance
+            - Elastic IP
+            - Security Group
+            - Docker images
+            
+            ---
+            *Thank you for using our staging environment!*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            }); 

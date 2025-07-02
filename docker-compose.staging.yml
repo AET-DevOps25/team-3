@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  client:
+    image: ghcr.io/aet-devops25/team-3/client:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_GENAI_URL=http://localhost:8000
+    restart: unless-stopped
+    networks:
+      - studymate-network
+
+  server:
+    image: ghcr.io/aet-devops25/team-3/server:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - GENAI_SERVICE_URL=http://genai:8000
+    restart: unless-stopped
+    networks:
+      - studymate-network
+    depends_on:
+      - genai
+
+  genai:
+    image: ghcr.io/aet-devops25/team-3/genai:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+    networks:
+      - studymate-network
+
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+      - --log.level=INFO
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8082:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - studymate-network
+
+networks:
+  studymate-network:
+    driver: bridge 
