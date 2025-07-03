@@ -85,7 +85,7 @@ async def receive_prompt(data: PromptRequest):
             return {"response": f"ERROR: {error_msg}"}
         
         logger.info(f"Processing chat request for session {data.session_id}")
-        response = llm_instances[data.session_id].prompt(data.message)
+        response = await llm_instances[data.session_id].prompt(data.message)
         return {"response": response}
     except Exception as e:
         error_msg = f"Chat error for session {data.session_id}: {str(e)}"
@@ -104,7 +104,7 @@ async def generate_summary(data: SummaryRequest):
             return {"response": f"ERROR: {error_msg}"}
         
         logger.info(f"Generating summary for session {data.session_id}")
-        response = llm_instances[data.session_id].summarize()
+        response = await llm_instances[data.session_id].summarize()
         logger.info(f"Summary generated successfully for session {data.session_id}")
         return {"response": response}
     except Exception as e:

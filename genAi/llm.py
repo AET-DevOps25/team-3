@@ -18,10 +18,19 @@ load_dotenv()
 
 
 class StudyLLM:
-    llm = ChatOpenAI(
+    # for chat
+    chat_llm = ChatOpenAI(
         model="llama3.3:latest",
         temperature=0.5,
-        api_key=os.getenv("OPEN_WEBUI_API_KEY"),
+        api_key=os.getenv("OPEN_WEBUI_API_KEY_CHAT"),
+        base_url="https://gpu.aet.cit.tum.de/api/"
+    )
+    
+    # For summaries, quizzes, flashcards
+    generation_llm = ChatOpenAI(
+        model="qwen3:30b-a3b",
+        temperature=0.5,
+        api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
         base_url="https://gpu.aet.cit.tum.de/api/"
     )
     
@@ -39,26 +48,9 @@ class StudyLLM:
             self.rag_helper = RAGHelper(doc_path)
         except Exception as e:
             raise ValueError(f"Error initializing RAGHelper: {e}")
-    
-    def _chain(self, output_model: BaseModel = None):
-        """
-        Construct a chain for the LLM with given configurations.
-        
-        Args:
-            OutputModel (BaseModel, optional): A Pydantic model for structured output.
-            ...
-        Returns:
-            RnnableSequence: The chain for the LLM.
-        """
-        llm = self.llm
-        
-        if output_model:
-            llm = llm.with_structured_output(output_model)
-        
-        return self.base_prompt_template | llm
 
     
-    def prompt(self, prompt: str) -> str:
+    async def prompt(self, prompt: str) -> str:
         """
         Call the LLM with a given prompt.
         
@@ -74,13 +66,16 @@ class StudyLLM:
             )
         
         context = self.rag_helper.retrieve(prompt, top_k=5)
-        return self._chain().invoke({
+        chain = self.base_prompt_template | self.chat_llm
+        response = await chain.ainvoke({
             'context': context,
             'task':task,
             'input':prompt
-            }).content
+            })
+        
+        return response.content
 
-    def summarize(self):
+    async def summarize(self):
         """
         Summarize the given document using the LLM.
         
@@ -107,13 +102,13 @@ class StudyLLM:
         )
 
         chain = load_summarize_chain(
-            self.llm,
+            self.generation_llm,
             chain_type="map_reduce",
             map_prompt=map_prompt,
             combine_prompt=combine_prompt
         )
 
-        result = chain.invoke({"input_documents": self.rag_helper.summary_chunks})
+        result = await chain.ainvoke({"input_documents": self.rag_helper.summary_chunks})
         
         return result["output_text"]
         
@@ -124,7 +119,7 @@ class StudyLLM:
         Returns:
             list: A list of flashcard objects.
         """
-        flashcard_chain = FlashcardChain(self.llm)
+        flashcard_chain = FlashcardChain(self.generation_llm)
         cards = await flashcard_chain.invoke(self.rag_helper.summary_chunks)
         return cards
     
@@ -135,7 +130,7 @@ class StudyLLM:
         Returns:
             list: A quiz object.
         """
-        quiz_chain = QuizChain(self.llm)
+        quiz_chain = QuizChain(self.generation_llm)
         quiz = await quiz_chain.invoke(self.rag_helper.summary_chunks)
         return quiz
     
