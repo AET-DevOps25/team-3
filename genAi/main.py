@@ -69,7 +69,7 @@ async def receive_prompt(data: PromptRequest):
     """
     Receive a prompt and return a response from the LLM.
     """
-    response = llm_instances[data.session_id].prompt(data.message)
+    response = await llm_instances[data.session_id].prompt(data.message)
     return {"response": response}
 
 @app.post("/summary")
@@ -77,7 +77,7 @@ async def receive_prompt(data: SummaryRequest):
     """
     Receive a summary reuest and return a summary from the LLM.
     """
-    response = llm_instances[data.session_id].summarize()
+    response = await llm_instances[data.session_id].summarize()
     return {"response": response}
 
 @app.post("/flashcard")
