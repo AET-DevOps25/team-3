@@ -28,7 +28,7 @@ class StudyLLM:
     
     # For summaries, quizzes, flashcards
     generation_llm = ChatOpenAI(
-        model="qwen3:30b-a3b",
+        model="llama3.3:latest",
         temperature=0.5,
         api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
         base_url="https://gpu.aet.cit.tum.de/api/"
