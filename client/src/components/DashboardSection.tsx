@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,9 +23,11 @@ interface DashboardSectionProps {
 const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: DashboardSectionProps) => {
   const [activeTab, setActiveTab] = useState('upload');
   
-  // Extract files and document IDs
-  const files = uploadedFiles.map(item => item.file);
-  const documentIds = uploadedFiles.map(item => item.documentId);
+  // Extract files and document IDs with memoization to prevent unnecessary re-renders
+  const files = useMemo(() => uploadedFiles.map(item => item.file), [uploadedFiles]);
+  const documentIds = useMemo(() => uploadedFiles.map(item => item.documentId), [uploadedFiles]);
+  
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -92,11 +93,11 @@ const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: Dashboa
           </TabsContent>
 
           <TabsContent value="summary" className="animate-fade-in">
-            <SummaryTab uploadedFiles={files} />
+            <SummaryTab uploadedFiles={files} documentIds={documentIds} />
           </TabsContent>
 
           <TabsContent value="quiz" className="animate-fade-in">
-            <QuizTab uploadedFiles={files} />
+            <QuizTab uploadedFiles={files} documentIds={documentIds} />
           </TabsContent>
 
           <TabsContent value="flashcards" className="animate-fade-in">

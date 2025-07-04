@@ -77,4 +77,17 @@ data class QuizResponse(
 
 data class QuizData(
     val questions: List<QuestionModel>
+)
+
+// Additional DTOs for quiz API
+data class QuizGenerationRequest(
+    val documentId: String
+)
+
+// Extended QuizResponse for direct API responses
+data class QuizApiResponse(
+    val questions: List<QuestionModel>,
+    val documentName: String? = null,
+    val documentId: String? = null,
+    val error: String? = null
 ) 

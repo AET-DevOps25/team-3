@@ -1,63 +1,81 @@
-
-import { useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Clock, CheckCircle, XCircle, Trophy, RotateCcw } from 'lucide-react';
+import { Brain, Clock, CheckCircle, XCircle, Trophy, RotateCcw, Loader2 } from 'lucide-react';
+import { apiService } from '../lib/api';
 
 interface QuizTabProps {
   uploadedFiles: File[];
+  documentIds: string[];
 }
 
-const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
+interface QuizQuestion {
+  type: string;
+  question: string;
+  correctAnswer: string;
+  points: number;
+  options?: string[];
+}
+
+interface QuizData {
+  questions: QuizQuestion[];
+  documentName: string;
+  documentId: string;
+  error?: string;
+}
+
+const QuizTab = ({ uploadedFiles, documentIds }: QuizTabProps) => {
+  const [quizzes, setQuizzes] = useState<QuizData[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<{ [key: number]: number }>({});
   const [showResults, setShowResults] = useState(false);
 
-  const mockQuizzes = [
-    {
-      id: 1,
-      title: "Machine Learning Fundamentals",
-      description: "Test your understanding of basic ML concepts",
-      questions: 8,
-      difficulty: "Intermediate",
-      estimatedTime: "10 min",
-      source: "Machine Learning Lecture 1.pdf"
-    },
-    {
-      id: 2,
-      title: "Probability Distributions Quiz",
-      description: "Quiz on normal, binomial, and Poisson distributions",
-      questions: 6,
-      difficulty: "Advanced",
-      estimatedTime: "8 min",
-      source: "Statistics Chapter 5.pdf"
-    }
-  ];
-
-  const mockQuestions = [
-    {
-      question: "What is the main difference between supervised and unsupervised learning?",
-      options: [
-        "Supervised learning uses labeled data, unsupervised doesn't",
-        "Supervised learning is faster than unsupervised learning",
-        "Supervised learning only works with numerical data",
-        "There is no difference between them"
-      ],
-      correct: 0
-    },
-    {
-      question: "Which of the following is an example of overfitting?",
-      options: [
-        "Model performs well on both training and test data",
-        "Model performs poorly on both training and test data",
-        "Model performs well on training data but poorly on test data",
-        "Model performs poorly on training data but well on test data"
-      ],
-      correct: 2
-    }
-  ];
+  useEffect(() => {
+    console.log('QuizTab useEffect triggered, documentIds:', documentIds);
+    const fetchQuizzes = async () => {
+      // Check if we have already fetched quizzes for these document IDs
+      const newDocumentIds = documentIds.filter(id => !fetchedDocumentIds.current.has(id));
+      if (newDocumentIds.length === 0) {
+        console.log('No new document IDs to fetch quizzes for');
+        return;
+      }
+      console.log('Fetching quizzes for new document IDs:', newDocumentIds);
+      if (!newDocumentIds.length) {
+        setQuizzes([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const quizPromises = newDocumentIds.map(async (documentId) => {
+          try {
+            const res = await apiService.getQuizForDocument(documentId);
+            return res;
+          } catch (error) {
+            return {
+              questions: [],
+              documentName: 'Unknown Document',
+              documentId,
+              error: error instanceof Error ? error.message : 'Failed to fetch quiz',
+            };
+          }
+        });
+        const results = await Promise.all(quizPromises);
+        // Mark these document IDs as fetched
+        newDocumentIds.forEach(id => fetchedDocumentIds.current.add(id));
+        setQuizzes(prevQuizzes => {
+          // Merge new results with existing quizzes
+          const existingQuizzes = prevQuizzes.filter(q => !newDocumentIds.includes(q.documentId));
+          return [...existingQuizzes, ...results];
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchQuizzes();
+  }, [documentIds]);
 
   const handleAnswerSelect = (questionIndex: number, answerIndex: number) => {
     setSelectedAnswers(prev => ({
@@ -70,17 +88,21 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
     setShowResults(true);
   };
 
-  const calculateScore = () => {
+  const calculateScore = (quiz: QuizData) => {
     let correct = 0;
-    mockQuestions.forEach((question, index) => {
-      if (selectedAnswers[index] === question.correct) {
+    quiz.questions.forEach((question, index) => {
+      if (
+        question.options &&
+        selectedAnswers[index] !== undefined &&
+        question.options[selectedAnswers[index]] === question.correctAnswer
+      ) {
         correct++;
       }
     });
-    return Math.round((correct / mockQuestions.length) * 100);
+    return quiz.questions.length > 0 ? Math.round((correct / quiz.questions.length) * 100) : 0;
   };
 
-  if (uploadedFiles.length === 0) {
+  if (uploadedFiles.length === 0 || documentIds.length === 0) {
     return (
       <Card className="text-center py-12">
         <CardContent>
@@ -93,7 +115,22 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
     );
   }
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading quizzes...</h3>
+          <p className="text-gray-600">AI is generating quizzes for your documents</p>
+        </div>
+      </div>
+    );
+  }
+
   if (selectedQuiz !== null && !showResults) {
+    const quiz = quizzes[selectedQuiz];
+    if (!quiz) return null;
+    const question = quiz.questions[currentQuestion];
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Quiz Header */}
@@ -101,8 +138,8 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-xl">Machine Learning Fundamentals</CardTitle>
-                <CardDescription>Question {currentQuestion + 1} of {mockQuestions.length}</CardDescription>
+                <CardTitle className="text-xl">{quiz.documentName}</CardTitle>
+                <CardDescription>Question {currentQuestion + 1} of {quiz.questions.length}</CardDescription>
               </div>
               <Button variant="outline" onClick={() => setSelectedQuiz(null)}>
                 Exit Quiz
@@ -111,7 +148,7 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div 
                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentQuestion + 1) / mockQuestions.length) * 100}%` }}
+                style={{ width: `${((currentQuestion + 1) / quiz.questions.length) * 100}%` }}
               ></div>
             </div>
           </CardHeader>
@@ -121,11 +158,11 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg leading-relaxed">
-              {mockQuestions[currentQuestion].question}
+              {question.question}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {mockQuestions[currentQuestion].options.map((option, index) => (
+            {question.options && question.options.map((option, index) => (
               <button
                 key={index}
                 onClick={() => handleAnswerSelect(currentQuestion, index)}
@@ -158,8 +195,7 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
               >
                 Previous
               </Button>
-              
-              {currentQuestion === mockQuestions.length - 1 ? (
+              {currentQuestion === quiz.questions.length - 1 ? (
                 <Button 
                   onClick={handleSubmitQuiz}
                   disabled={selectedAnswers[currentQuestion] === undefined}
@@ -169,7 +205,7 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
                 </Button>
               ) : (
                 <Button 
-                  onClick={() => setCurrentQuestion(prev => Math.min(mockQuestions.length - 1, prev + 1))}
+                  onClick={() => setCurrentQuestion(prev => Math.min(quiz.questions.length - 1, prev + 1))}
                   disabled={selectedAnswers[currentQuestion] === undefined}
                 >
                   Next
@@ -182,8 +218,10 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
     );
   }
 
-  if (showResults) {
-    const score = calculateScore();
+  if (showResults && selectedQuiz !== null) {
+    const quiz = quizzes[selectedQuiz];
+    if (!quiz) return null;
+    const score = calculateScore(quiz);
     return (
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Results Header */}
@@ -214,10 +252,9 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
             <CardTitle>Answer Review</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {mockQuestions.map((question, index) => {
+            {quiz.questions.map((question, index) => {
               const userAnswer = selectedAnswers[index];
-              const isCorrect = userAnswer === question.correct;
-              
+              const isCorrect = question.options && userAnswer !== undefined && question.options[userAnswer] === question.correctAnswer;
               return (
                 <div key={index} className="border-b border-gray-100 pb-6 last:border-b-0">
                   <div className="flex items-start space-x-3 mb-3">
@@ -229,16 +266,15 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 mb-2">{question.question}</h4>
                       <div className="space-y-2">
-                        {question.options.map((option, optionIndex) => {
+                        {question.options && question.options.map((option, optionIndex) => {
                           let className = "p-2 rounded text-sm ";
-                          if (optionIndex === question.correct) {
+                          if (option === question.correctAnswer) {
                             className += "bg-green-100 text-green-800 border border-green-200";
                           } else if (optionIndex === userAnswer && !isCorrect) {
                             className += "bg-red-100 text-red-800 border border-red-200";
                           } else {
                             className += "bg-gray-50 text-gray-700";
                           }
-                          
                           return (
                             <div key={optionIndex} className={className}>
                               {option}
@@ -265,25 +301,24 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
           <h2 className="text-2xl font-bold text-gray-900">AI-Generated Quizzes</h2>
           <p className="text-gray-600">Test your knowledge with personalized quizzes</p>
         </div>
-        <Button className="bg-green-600 hover:bg-green-700">
-          Generate New Quiz
-        </Button>
       </div>
 
       {/* Quiz Cards */}
       <div className="grid gap-6 md:grid-cols-2">
-        {mockQuizzes.map((quiz, index) => (
-          <Card key={quiz.id} className="hover:shadow-lg transition-shadow cursor-pointer group">
+        {quizzes.map((quiz, index) => (
+          <Card key={quiz.documentId} className="hover:shadow-lg transition-shadow cursor-pointer group">
             <CardHeader>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <CardTitle className="text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                    {quiz.title}
+                    {quiz.documentName}
                   </CardTitle>
-                  <CardDescription className="mt-2">{quiz.description}</CardDescription>
+                  <CardDescription className="mt-2">
+                    {quiz.questions.length > 0 ? `${quiz.questions.length} questions` : quiz.error || 'No quiz available'}
+                  </CardDescription>
                 </div>
-                <Badge variant={quiz.difficulty === 'Advanced' ? 'destructive' : 'secondary'}>
-                  {quiz.difficulty}
+                <Badge variant={quiz.questions.length > 7 ? 'destructive' : 'secondary'}>
+                  {quiz.questions.length > 7 ? 'Advanced' : 'Standard'}
                 </Badge>
               </div>
             </CardHeader>
@@ -291,21 +326,25 @@ const QuizTab = ({ uploadedFiles }: QuizTabProps) => {
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <span className="flex items-center">
                   <Brain className="h-4 w-4 mr-1" />
-                  {quiz.questions} questions
+                  {quiz.questions.length} questions
                 </span>
                 <span className="flex items-center">
                   <Clock className="h-4 w-4 mr-1" />
-                  {quiz.estimatedTime}
+                  {Math.max(1, Math.ceil(quiz.questions.length * 1.5))} min
                 </span>
               </div>
-              
               <div className="text-xs text-gray-500">
-                Source: {quiz.source}
+                Source: {quiz.documentName}
               </div>
-              
               <Button 
                 className="w-full"
-                onClick={() => setSelectedQuiz(quiz.id)}
+                onClick={() => {
+                  setSelectedQuiz(index);
+                  setCurrentQuestion(0);
+                  setSelectedAnswers({});
+                  setShowResults(false);
+                }}
+                disabled={quiz.questions.length === 0}
               >
                 Start Quiz
               </Button>

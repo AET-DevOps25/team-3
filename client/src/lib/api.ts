@@ -219,6 +219,15 @@ class ApiService {
 
     return response.json();
   }
+
+  async getQuizForDocument(documentId: string): Promise<any> {
+    const response = await fetch(`${this.baseUrl}/api/quiz/documents/${documentId}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to get quiz: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  }
 }
 
 export const apiService = new ApiService();
