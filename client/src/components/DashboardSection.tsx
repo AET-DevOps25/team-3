@@ -22,10 +22,21 @@ interface DashboardSectionProps {
 
 const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: DashboardSectionProps) => {
   const [activeTab, setActiveTab] = useState('upload');
+  const [quizzes, setQuizzes] = useState([]);
+  const [answers, setAnswers] = useState({}); // answers: { [documentId: string]: { [questionIndex: number]: string | number } }
+  
+  console.log('DashboardSection render - uploadedFiles length:', uploadedFiles.length);
+  console.log('DashboardSection render - uploadedFiles:', uploadedFiles.map(f => ({ name: f.file.name, id: f.documentId })));
   
   // Extract files and document IDs with memoization to prevent unnecessary re-renders
-  const files = useMemo(() => uploadedFiles.map(item => item.file), [uploadedFiles]);
-  const documentIds = useMemo(() => uploadedFiles.map(item => item.documentId), [uploadedFiles]);
+  const files = useMemo(() => {
+    console.log('DashboardSection - files memo recalculated');
+    return uploadedFiles.map(item => item.file);
+  }, [uploadedFiles]);
+  const documentIds = useMemo(() => {
+    console.log('DashboardSection - documentIds memo recalculated:', uploadedFiles.map(item => item.documentId));
+    return uploadedFiles.map(item => item.documentId);
+  }, [uploadedFiles]);
   
 
 
@@ -97,7 +108,7 @@ const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: Dashboa
           </TabsContent>
 
           <TabsContent value="quiz" className="animate-fade-in">
-            <QuizTab uploadedFiles={files} documentIds={documentIds} />
+            <QuizTab uploadedFiles={files} documentIds={documentIds} quizzes={quizzes} setQuizzes={setQuizzes} answers={answers} setAnswers={setAnswers} />
           </TabsContent>
 
           <TabsContent value="flashcards" className="animate-fade-in">
