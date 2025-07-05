@@ -25,7 +25,7 @@ cd server
 ### 3. Test the API
 ```bash
 # Test if the server is responding
-curl http://localhost:8080/api/documents
+curl http://localhost:8082/api/documents
 # Should return: {"documents":[]}
 ```
 

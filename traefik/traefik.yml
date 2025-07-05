@@ -2,7 +2,7 @@ log:
   level: INFO
 
 api:
-  # Enable the API and dashboard. # TODO: secure
+  # Enable the API and dashboard for development
   insecure: true
   dashboard: true
 
@@ -13,11 +13,6 @@ providers:
 entryPoints:
   web:
     address: ":80"
-    http:
-      redirections:
-        entryPoint:
-          to: websecure
-          scheme: https
 
   websecure:
     address: ":443"
