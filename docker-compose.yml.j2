@@ -40,7 +40,7 @@ services:
       - "traefik.http.routers.server.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api`)"
       - "traefik.http.routers.server.entrypoints=websecure"
       - "traefik.http.routers.server.tls.certresolver=myresolver"
-      - "traefik.http.services.server.loadbalancer.server.port=8080"
+      - "traefik.http.services.server.loadbalancer.server.port=8082"
     environment: # TODO: replace values with an env variables & secrets
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/mydb
       - SPRING_DATASOURCE_USERNAME=postgres
@@ -60,6 +60,9 @@ services:
       - "traefik.http.routers.genai.entrypoints=websecure"
       - "traefik.http.routers.genai.tls.certresolver=myresolver"
       - "traefik.http.services.genai.loadbalancer.server.port=8081"
+    environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8083
     depends_on:
       - weaviate
 
@@ -81,12 +84,12 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - '8082'
+      - '8083'
       - --scheme
       - http
     image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
     ports: # TODO: remove?
-      - 8082:8082
+      - 8083:8083
       - 50051:50051
     volumes:
       - weaviate_data:/var/lib/weaviate

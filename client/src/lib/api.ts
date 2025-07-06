@@ -1,5 +1,5 @@
 // API service for communicating with the Spring Boot backend
-const API_BASE_URL = 'http://localhost:8080';
+const API_BASE_URL = 'http://localhost:8082';
 
 export interface DocumentUploadResponse {
   documentIds: string[];
@@ -218,6 +218,25 @@ class ApiService {
     }
 
     return response.json();
+  }
+
+  async getQuizForDocument(documentId: string): Promise<any> {
+    console.log('API: Fetching quiz for document:', documentId);
+    const response = await fetch(`${this.baseUrl}/api/quiz/documents/${documentId}`);
+    console.log('API: Quiz response status:', response.status);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to get quiz: ${response.status} ${response.statusText}`);
+    }
+    const data = await response.json();
+    // Map correct_answer to correctAnswer for each question
+    if (data && data.questions && Array.isArray(data.questions)) {
+      data.questions = data.questions.map(q => ({
+        ...q,
+        correctAnswer: q.correct_answer,
+      }));
+    }
+    return data;
   }
 }
 

@@ -140,7 +140,7 @@ curl -H "Origin: http://localhost:3000" \
      -H "Access-Control-Request-Method: POST" \
      -H "Access-Control-Request-Headers: Content-Type" \
      -X OPTIONS \
-     http://localhost:8080/api/documents/upload
+     http://localhost:8082/api/documents/upload
 ```
 
 #### Production Test
@@ -157,7 +157,7 @@ curl -H "Origin: https://studymate.com" \
 1. **Check Active Profile**
    ```bash
    # Look for: "The following profiles are active: prod"
-   curl http://localhost:8080/actuator/env
+   curl http://localhost:8082/actuator/env
    ```
 
 2. **Verify Allowed Origins**

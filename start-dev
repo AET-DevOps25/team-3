@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# Default options
+RECREATE=""
+DETACH=""
+
+# Parse arguments
+while getopts "rd" opt; do
+  case ${opt} in
+    r )
+      RECREATE="--force-recreate"
+      ;;
+    d )
+      DETACH="-d"
+      ;;
+    \? )
+      echo "Usage: $0 [-r] [-d]"
+      exit 1
+      ;;
+  esac
+done
+
+# Run docker compose with optional flags
+docker compose -f docker-compose.dev-no-traefik.yml up $RECREATE $DETACH

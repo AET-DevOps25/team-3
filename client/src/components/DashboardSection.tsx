@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,14 +9,36 @@ import QuizTab from '@/components/QuizTab';
 import FlashcardsTab from '@/components/FlashcardsTab';
 import ChatTab from '@/components/ChatTab';
 
+interface UploadedFileWithId {
+  file: File;
+  documentId: string;
+}
+
 interface DashboardSectionProps {
-  uploadedFiles: File[];
-  onFileUpload: (files: File[]) => void;
+  uploadedFiles: UploadedFileWithId[];
+  onFileUpload: (files: File[], documentIds: string[]) => void;
   onBackToHome: () => void;
 }
 
 const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: DashboardSectionProps) => {
   const [activeTab, setActiveTab] = useState('upload');
+  const [quizzes, setQuizzes] = useState([]);
+  const [answers, setAnswers] = useState({}); // answers: { [documentId: string]: { [questionIndex: number]: string | number } }
+  
+  console.log('DashboardSection render - uploadedFiles length:', uploadedFiles.length);
+  console.log('DashboardSection render - uploadedFiles:', uploadedFiles.map(f => ({ name: f.file.name, id: f.documentId })));
+  
+  // Extract files and document IDs with memoization to prevent unnecessary re-renders
+  const files = useMemo(() => {
+    console.log('DashboardSection - files memo recalculated');
+    return uploadedFiles.map(item => item.file);
+  }, [uploadedFiles]);
+  const documentIds = useMemo(() => {
+    console.log('DashboardSection - documentIds memo recalculated:', uploadedFiles.map(item => item.documentId));
+    return uploadedFiles.map(item => item.documentId);
+  }, [uploadedFiles]);
+  
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -42,7 +63,7 @@ const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: Dashboa
               </div>
             </div>
             <div className="text-sm text-gray-600">
-              {uploadedFiles.length} file(s) uploaded
+              {files.length} file(s) uploaded
             </div>
           </div>
         </div>
@@ -77,25 +98,25 @@ const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: Dashboa
           <TabsContent value="upload" className="animate-fade-in">
             <UploadSection 
               onFileUpload={onFileUpload} 
-              uploadedFiles={uploadedFiles}
+              uploadedFiles={files}
               onContinue={() => setActiveTab('summary')}
             />
           </TabsContent>
 
           <TabsContent value="summary" className="animate-fade-in">
-            <SummaryTab uploadedFiles={uploadedFiles} />
+            <SummaryTab uploadedFiles={files} documentIds={documentIds} />
           </TabsContent>
 
           <TabsContent value="quiz" className="animate-fade-in">
-            <QuizTab uploadedFiles={uploadedFiles} />
+            <QuizTab uploadedFiles={files} documentIds={documentIds} quizzes={quizzes} setQuizzes={setQuizzes} answers={answers} setAnswers={setAnswers} />
           </TabsContent>
 
           <TabsContent value="flashcards" className="animate-fade-in">
-            <FlashcardsTab uploadedFiles={uploadedFiles} />
+            <FlashcardsTab uploadedFiles={files} />
           </TabsContent>
 
           <TabsContent value="chat" className="animate-fade-in">
-            <ChatTab uploadedFiles={uploadedFiles} />
+            <ChatTab uploadedFiles={files} documentIds={documentIds} />
           </TabsContent>
         </Tabs>
       </div>
