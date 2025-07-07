@@ -52,6 +52,13 @@ services:
   genai:
     image: ghcr.io/aet-devops25/team-3/genai:{{ image_tag }}
     restart: unless-stopped
+    environment:
+      - OPEN_WEBUI_API_KEY_CHAT="{{ open_webui_api_key_chat }}"
+      - OPEN_WEBUI_API_KEY_GEN="{{ open_webui_api_key_gen }}"
+      - LANGSMITH_TRACING=true
+      - LANGSMITH_ENDPOINT="https://api.smith.langchain.com"
+      - LANGSMITH_API_KEY="{{ langsmith_api_key }}"
+      - LANGSMITH_PROJECT="studymate"
     networks:
       - proxy
     labels:

@@ -6,6 +6,9 @@
   vars:
     project_dir: /home/ubuntu/app
     image_tag: "{{ lookup('env','IMAGE_TAG') }}"
+    open_webui_api_key_chat: "{{ lookup('env','OPEN_WEBUI_API_KEY_CHAT') }}"
+    open_webui_api_key_gen: "{{ lookup('env','OPEN_WEBUI_API_KEY_GEN') }}"
+    langsmith_api_key: "{{ lookup('env','LANGSMITH_API_KEY') }}"
 
   tasks:
     - name: Ensure project directory exists
