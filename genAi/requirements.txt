@@ -15,3 +15,4 @@ langchain_huggingface
 sentence-transformers
 requests
 langchain-core
+prometheus-fastapi-instrumentator

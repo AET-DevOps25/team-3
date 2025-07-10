@@ -1,0 +1,16 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prod'
+    static_configs:
+      - targets: ['genai:8081']
+        labels:
+            app: "genai-server"
+
+  # For dev only (when services are run manually)
+  - job_name: 'dev'
+    static_configs:
+      - targets: ['host.docker.internal:8000'] # genai
+        labels:
+            app: "genai-server"

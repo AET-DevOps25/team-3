@@ -48,6 +48,8 @@ services:
       - "8081:8081"  # FastAPI GenAI service
     networks:
       - dev-network
+    env_file:
+      - ./genai/.env
     environment:
       - WEAVIATE_HOST=weaviate
       - WEAVIATE_PORT=8083
@@ -97,6 +99,15 @@ services:
       PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
       ENABLE_API_BASED_MODULES: 'true'
       CLUSTER_HOSTNAME: 'node1'
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - dev-network
 
 volumes:
   postgres_dev_data:
