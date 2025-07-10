@@ -10,8 +10,6 @@ langchain-openai
 langchain-weaviate
 langchain-community
 langchain-text-splitters
-cohere==5.12.0
-langchain-cohere==0.4.3
 pymupdf # for the PDF loader
 langchain_huggingface
 sentence-transformers

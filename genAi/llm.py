@@ -5,13 +5,7 @@ from langchain.prompts import PromptTemplate
 
 from dotenv import load_dotenv
 import os
-
-from pydantic import BaseModel
-
 from chains import FlashcardChain, QuizChain
-from response_models import FlashcardResponse
-from request_models import SummaryRequest
-
 from rag import RAGHelper
 
 load_dotenv()
