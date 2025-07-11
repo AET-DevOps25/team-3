@@ -5,12 +5,10 @@
 
   vars:
     project_dir: /home/ubuntu/app
-    image_tag: "{{ lookup('env','IMAGE_TAG') }}"
-    open_webui_api_key_chat: "{{ lookup('env','OPEN_WEBUI_API_KEY_CHAT') }}"
-    open_webui_api_key_gen: "{{ lookup('env','OPEN_WEBUI_API_KEY_GEN') }}"
-    langsmith_api_key: "{{ lookup('env','LANGSMITH_API_KEY') }}"
 
   tasks:
+    - include_tasks: tasks/env_vars.yml # load env variables
+    
     - name: Ensure project directory exists
       file:
         path: "{{ project_dir }}"
@@ -18,12 +16,12 @@
 
     - name: Template compose with image tags
       template:
-        src: ../../docker-compose.yml.j2
+        src: ../docker-compose.yml.j2
         dest: "{{ project_dir }}/docker-compose.yml"
 
     - name: Copy Traefik configuration files
       copy:
-        src: ../../traefik/
+        src: ../traefik/
         dest: "{{ project_dir }}/traefik/"
 
     - name: Create acme.json file for Let's Encrypt certificates
@@ -36,7 +34,7 @@
 
     - name: Copy Prometheus configuration files
       copy:
-        src: ../../monitoring/prometheus/
+        src: ../monitoring/prometheus/
         dest: "{{ project_dir }}/monitoring/prometheus/"
 
 
