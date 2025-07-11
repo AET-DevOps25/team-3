@@ -53,6 +53,8 @@ services:
     image: ghcr.io/aet-devops25/team-3/genai:{{ image_tag }}
     restart: unless-stopped
     environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8083
       - OPEN_WEBUI_API_KEY_CHAT="{{ open_webui_api_key_chat }}"
       - OPEN_WEBUI_API_KEY_GEN="{{ open_webui_api_key_gen }}"
       - LANGSMITH_TRACING=true
@@ -67,9 +69,6 @@ services:
       - "traefik.http.routers.genai.entrypoints=websecure"
       - "traefik.http.routers.genai.tls.certresolver=myresolver"
       - "traefik.http.services.genai.loadbalancer.server.port=8081"
-    environment:
-      - WEAVIATE_HOST=weaviate
-      - WEAVIATE_PORT=8083
     depends_on:
       - weaviate
 
