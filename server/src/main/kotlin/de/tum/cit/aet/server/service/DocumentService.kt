@@ -33,6 +33,46 @@ class DocumentService(
 ) {
     
     private val logger = LoggerFactory.getLogger(DocumentService::class.java)
+    private val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
+    
+    // Utility methods for common patterns
+    fun validateDocumentExists(documentId: String): DocumentEntity {
+        return documentRepository.findById(documentId)
+            .orElseThrow { IllegalArgumentException("Document not found with ID: $documentId") }
+    }
+    
+    fun getDocumentNameSafely(documentId: String): String {
+        return try {
+            validateDocumentExists(documentId).originalName
+        } catch (e: Exception) {
+            "Unknown Document"
+        }
+    }
+    
+    fun shouldWaitForAutoProcessing(document: DocumentEntity): Boolean {
+        return document.status == DocumentStatus.PROCESSING ||
+               document.summaryStatus == DocumentStatus.PROCESSING ||
+               document.quizStatus == DocumentStatus.PROCESSING ||
+               document.flashcardStatus == DocumentStatus.PROCESSING ||
+               document.summaryStatus == DocumentStatus.UPLOADED
+    }
+
+    fun <T> parseJsonContent(jsonNode: JsonNode?, parser: (Map<*, *>) -> List<T>): List<T>? {
+        return try {
+            if (jsonNode != null) {
+                val dataMap = objectMapper.readValue(jsonNode.toString(), Map::class.java) as Map<*, *>
+                val responseMap = dataMap["response"] as? Map<*, *>
+                val itemsList = (responseMap?.get("questions") as? List<*>) ?: (responseMap?.get("flashcards") as? List<*>)
+                
+                if (itemsList != null && responseMap != null) {
+                    parser(responseMap)
+                } else null
+            } else null
+        } catch (e: Exception) {
+            logger.warn("Failed to parse JSON content: ${e.message}")
+            null
+        }
+    }
     
     @Transactional
     fun uploadFiles(files: Array<MultipartFile>): DocumentUploadResponse {
@@ -193,7 +233,6 @@ class DocumentService(
             .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
         
         // Convert QuizResponse to JsonNode for storage
-        val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
         val quizJson = quizData?.let { response: QuizResponse -> 
             objectMapper.readTree(objectMapper.writeValueAsString(response))
         }
@@ -214,7 +253,6 @@ class DocumentService(
             .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
         
         // Convert FlashcardResponse to JsonNode for storage
-        val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
         val flashcardJson = flashcardData?.let { response: FlashcardResponse -> 
             val jsonString = objectMapper.writeValueAsString(response)
             logger.info("Saving flashcard JSON for document {}: {}", documentId, jsonString)

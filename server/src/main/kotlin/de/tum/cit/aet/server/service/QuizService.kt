@@ -14,17 +14,12 @@ class QuizService(
 ) {
 
     fun generateQuiz(documentId: String): QuizApiResponse {
-        // Check if document exists
-        if (!documentRepository.existsById(documentId)) {
-            throw IllegalArgumentException("Document not found with ID: $documentId")
-        }
-
-        // Get document info for context
-        val document = documentRepository.findById(documentId).orElse(null)
-        val documentName = document?.originalName ?: "Unknown Document"
+        // Use utility method for validation
+        val document = documentService.validateDocumentExists(documentId)
+        val documentName = document.originalName
 
         // Check quiz status first
-        when (document?.quizStatus) {
+        when (document.quizStatus) {
             DocumentStatus.PROCESSING -> {
                 return QuizApiResponse(
                     questions = emptyList(),
@@ -44,58 +39,33 @@ class QuizService(
                 )
             }
             DocumentStatus.READY -> {
-                // Quiz is ready - return existing data if available
-                if (document.quizData != null) {
-                    val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
-                    try {
-                        // Parse existing quiz data
-                        val quizDataMap = objectMapper.readValue(document.quizData.toString(), Map::class.java) as Map<*, *>
-                        val responseMap = quizDataMap["response"] as? Map<*, *>
-                        val questionsList = responseMap?.get("questions") as? List<*>
-                        
-                        if (questionsList != null) {
-                            val questions = questionsList.map { questionMap ->
-                                val q = questionMap as Map<*, *>
-                                QuestionModel(
-                                    type = q["type"] as? String ?: "",
-                                    question = q["question"] as? String ?: "",
-                                    correctAnswer = q["correct_answer"] as? String ?: "",
-                                    points = (q["points"] as? Number)?.toInt() ?: 0,
-                                    options = (q["options"] as? List<*>)?.map { it.toString() }
-                                )
-                            }
-                            return QuizApiResponse(
-                                questions = questions,
-                                documentName = documentName,
-                                documentId = documentId,
-                                status = "READY"
-                            )
-                        }
-                    } catch (e: Exception) {
-                        // If parsing fails, continue to generation below
-                        println("Failed to parse existing quiz data: ${e.message}")
-                    }
-                }
-                // If READY but no data, fall through to generate
-            }
-            DocumentStatus.UPLOADED -> {
-                // Check if automatic document processing is still running
-                // If so, wait for it to complete rather than starting individual generation
-                if (document?.status == DocumentStatus.PROCESSING ||
-                    document?.summaryStatus == DocumentStatus.PROCESSING ||
-                    document?.flashcardStatus == DocumentStatus.PROCESSING) {
-                    return QuizApiResponse(
-                        questions = emptyList(),
-                        documentName = documentName,
-                        documentId = documentId,
-                        status = "GENERATING",
-                        error = "Document is currently being processed. Quiz will be available soon."
-                    )
+                // Use utility method for JSON parsing
+                val questions = documentService.parseJsonContent(document.quizData) { responseMap ->
+                    val questionsList = responseMap["questions"] as? List<*>
+                    questionsList?.map { questionMap ->
+                        val q = questionMap as Map<*, *>
+                        QuestionModel(
+                            type = q["type"] as? String ?: "",
+                            question = q["question"] as? String ?: "",
+                            correctAnswer = q["correct_answer"] as? String ?: "",
+                            points = (q["points"] as? Number)?.toInt() ?: 0,
+                            options = (q["options"] as? List<*>)?.map { it.toString() }
+                        )
+                    } ?: emptyList()
                 }
                 
-                // Check if this is a recently uploaded document that might still be in automatic processing
-                // If document was uploaded recently and summary is not processed yet, wait for automatic processing
-                if (document?.summaryStatus == DocumentStatus.UPLOADED) {
+                if (!questions.isNullOrEmpty()) {
+                    return QuizApiResponse(
+                        questions = questions,
+                        documentName = documentName,
+                        documentId = documentId,
+                        status = "READY"
+                    )
+                }
+            }
+            DocumentStatus.UPLOADED -> {
+                // Use utility method for auto-processing check
+                if (documentService.shouldWaitForAutoProcessing(document)) {
                     return QuizApiResponse(
                         questions = emptyList(),
                         documentName = documentName,
@@ -104,13 +74,9 @@ class QuizService(
                         error = "Document is being processed automatically. Quiz will be available soon."
                     )
                 }
-                
-                // Only start individual generation if automatic processing has clearly completed without generating quiz
-                // (i.e., summary is READY/ERROR but quiz is still UPLOADED)
             }
             else -> {
-                // For null or other statuses, check if main document processing is running
-                if (document?.status == DocumentStatus.PROCESSING) {
+                if (document.status == DocumentStatus.PROCESSING) {
                     return QuizApiResponse(
                         questions = emptyList(),
                         documentName = documentName,
@@ -122,7 +88,6 @@ class QuizService(
             }
         }
 
-        // Only start generation if we reach here and automatic processing is not handling it
         return startQuizGeneration(documentId, documentName)
     }
 
@@ -169,29 +134,11 @@ class QuizService(
     }
 
     fun regenerateQuiz(documentId: String): QuizApiResponse {
-        // Check if document exists
-        if (!documentRepository.existsById(documentId)) {
-            throw IllegalArgumentException("Document not found with ID: $documentId")
-        }
-
-        // Get document info for context
-        val document = documentRepository.findById(documentId).orElse(null)
-        val documentName = document?.originalName ?: "Unknown Document"
-
-        // Force regeneration by setting status to PROCESSING
-        documentService.updateQuizStatus(documentId, DocumentStatus.PROCESSING)
+        // Use utility method for validation
+        val documentName = documentService.getDocumentNameSafely(documentId)
         
-        // Start async regeneration
-        startAsyncQuizGeneration(documentId)
-        
-        // Return immediately with GENERATING status
-        return QuizApiResponse(
-            questions = emptyList(),
-            documentName = documentName,
-            documentId = documentId,
-            status = "GENERATING",
-            error = "Quiz is being regenerated. Please check back in a few moments."
-        )
+        // Force regeneration by directly calling generation method
+        return startQuizGeneration(documentId, documentName)
     }
 
     private fun generateFallbackQuiz(documentName: String): List<QuestionModel> {

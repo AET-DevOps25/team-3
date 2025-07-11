@@ -30,6 +30,51 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
+  // Helper function for status badge styling
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'READY':
+        return 'bg-green-100 text-green-600';
+      case 'PROCESSING':
+        return 'bg-yellow-100 text-yellow-600';
+      case 'ERROR':
+        return 'bg-red-100 text-red-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  // Helper function for card styling
+  const getCardStyle = (status: string) => {
+    if (status === 'ERROR') return 'border-red-200 bg-red-50';
+    if (status === 'PROCESSING') return 'border-yellow-200 bg-yellow-50';
+    return 'border-gray-200 bg-gray-50';
+  };
+
+  // Helper function for status messages
+  const getStatusMessage = (status: string) => {
+    switch (status) {
+      case 'PROCESSING':
+        return 'AI is analyzing this document...';
+      case 'ERROR':
+        return 'Processing failed. Please try uploading again.';
+      default:
+        return 'Document uploaded but summary processing hasn\'t started yet.';
+    }
+  };
+
+  // Consolidated document categorization
+  const categorizedSummaries = summaries.reduce((acc, summary) => {
+    if (summary.summaryStatus === 'READY') {
+      acc.ready.push(summary);
+    } else if (summary.summaryStatus === 'PROCESSING') {
+      acc.processing.push(summary);
+    } else {
+      acc.pending.push(summary);
+    }
+    return acc;
+  }, { ready: [] as DocumentSummary[], processing: [] as DocumentSummary[], pending: [] as DocumentSummary[] });
+
   // Fetch document summaries
   const fetchSummaries = async () => {
     if (documentIds.length === 0) {
@@ -106,7 +151,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
 
   // Export all summaries as PDFs
   const handleExportAllPDFs = () => {
-    if (documentsWithSummaries.length === 0) {
+    if (categorizedSummaries.ready.length === 0) {
       toast({
         title: 'No summaries to export',
         description: 'Please wait for summaries to be generated.',
@@ -115,7 +160,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       return;
     }
     
-    documentsWithSummaries.forEach((summary, index) => {
+    categorizedSummaries.ready.forEach((summary, index) => {
       // Add a small delay between exports to avoid browser blocking
       setTimeout(() => {
         handleExportPDF(summary);
@@ -124,7 +169,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     
     toast({
       title: 'Exporting all summaries',
-      description: `${documentsWithSummaries.length} PDF(s) will be downloaded.`,
+      description: `${categorizedSummaries.ready.length} PDF(s) will be downloaded.`,
     });
   };
 
@@ -254,14 +299,8 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     );
   }
 
-  const documentsWithSummaries = summaries.filter(s => s.summaryStatus === 'READY');
-  const documentsBeingProcessed = summaries.filter(s => s.summaryStatus === 'PROCESSING');
-  const documentsNotProcessed = summaries.filter(s => 
-    s.summaryStatus === 'UPLOADED' || s.summaryStatus === 'ERROR' || 
-    (!s.summaryStatus || s.summaryStatus === 'UNKNOWN')
-  );
+  const { ready, processing, pending } = categorizedSummaries;
   
-
 
   return (
     <div className="space-y-6">
@@ -283,7 +322,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
           <Button 
             className="bg-purple-600 hover:bg-purple-700"
             onClick={() => handleExportAllPDFs()}
-            disabled={documentsWithSummaries.length === 0}
+            disabled={ready.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
             Export All
@@ -292,9 +331,9 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       </div>
 
       {/* Documents with summaries */}
-      {documentsWithSummaries.length > 0 && (
+      {ready.length > 0 && (
         <div className="grid gap-6">
-          {documentsWithSummaries.map((item) => (
+          {ready.map((item) => (
             <Card key={item.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -311,11 +350,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                           {item.readTime}
                         </span>
                       )}
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        item.summaryStatus === 'READY' ? 'bg-green-100 text-green-600' :
-                        item.summaryStatus === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(item.summaryStatus)}`}>
                         {item.summaryStatus}
                       </span>
                     </CardDescription>
@@ -387,12 +422,12 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       )}
 
       {/* Documents being processed */}
-      {documentsBeingProcessed.length > 0 && (
+      {processing.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Documents Being Processed</h3>
           <div className="grid gap-4">
-            {documentsBeingProcessed.map((item) => (
-              <Card key={item.id} className="border-yellow-200 bg-yellow-50">
+            {processing.map((item) => (
+              <Card key={item.id} className={getCardStyle(item.summaryStatus)}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -400,17 +435,11 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                       <div>
                         <h4 className="font-medium text-gray-900">{item.name}</h4>
                         <p className="text-sm text-gray-600">
-                          {item.summaryStatus === 'PROCESSING' ? 'AI is analyzing this document...' : 
-                           item.summaryStatus === 'ERROR' ? 'Processing failed. Please try uploading again.' :
-                           'Waiting to be processed...'}
+                          {getStatusMessage(item.summaryStatus)}
                         </p>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.summaryStatus === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
-                      item.summaryStatus === 'ERROR' ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(item.summaryStatus)}`}>
                       {item.summaryStatus}
                     </span>
                   </div>
@@ -422,34 +451,26 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       )}
 
       {/* Documents not yet processed */}
-      {documentsNotProcessed.length > 0 && (
+      {pending.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">
-            {documentsNotProcessed.some(d => d.summaryStatus === 'ERROR') ? 'Documents with Issues' : 'Documents Pending Processing'}
+            {pending.some(d => d.summaryStatus === 'ERROR') ? 'Documents with Issues' : 'Documents Pending Processing'}
           </h3>
           <div className="grid gap-4">
-            {documentsNotProcessed.map((item) => (
-              <Card key={item.id} className={`${
-                item.summaryStatus === 'ERROR' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
-              }`}>
+            {pending.map((item) => (
+              <Card key={item.id} className={getCardStyle(item.summaryStatus)}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <FileText className={`h-5 w-5 ${
-                        item.summaryStatus === 'ERROR' ? 'text-red-600' : 'text-gray-600'
-                      }`} />
+                      <FileText className={`h-5 w-5 ${getStatusBadgeStyle(item.summaryStatus)}`} />
                       <div>
                         <h4 className="font-medium text-gray-900">{item.name}</h4>
                         <p className="text-sm text-gray-600">
-                          {item.summaryStatus === 'ERROR' ? 'Processing failed. Please try uploading again.' :
-                           'Document uploaded but summary processing hasn\'t started yet.'}
+                          {getStatusMessage(item.summaryStatus)}
                         </p>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.summaryStatus === 'ERROR' ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(item.summaryStatus)}`}>
                       {item.summaryStatus === 'ERROR' ? 'ERROR' : 'PENDING'}
                     </span>
                   </div>

@@ -189,12 +189,6 @@ class ChatService(
             }
         )
     }
-    
-    // TODO: Replace with actual GenAI service integration
-    fun processWithGenAI(message: String, documentIds: List<String>): String {
-        // This will be replaced with actual GenAI service call
-        return "GenAI response for: $message (using documents: ${documentIds.joinToString(", ")})"
-    }
 }
 
 data class AIResponseData(

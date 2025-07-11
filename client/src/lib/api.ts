@@ -258,20 +258,17 @@ class ApiService {
   }
 
   async getQuizForDocument(documentId: string): Promise<QuizApiResponse> {
-    console.log('API: Fetching quiz for document:', documentId);
     const response = await fetch(`${this.baseUrl}/api/quiz/documents/${documentId}`);
-    console.log('API: Quiz response status:', response.status);
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error || `Failed to get quiz: ${response.status} ${response.statusText}`);
     }
+    
     const data = await response.json();
-    console.log('API: Quiz response data:', data);
     
     // Handle error response from backend 
     if (data.error) {
-      console.log('API: Quiz status:', data.status, 'Error:', data.error);
-      // Return the actual status from backend instead of always setting to FAILED
       return {
         questions: data.questions || [],
         documentName: data.documentName || 'Unknown Document',
@@ -292,19 +289,17 @@ class ApiService {
   }
 
   async getFlashcardsForDocument(documentId: string): Promise<FlashcardApiResponse> {
-    console.log('API: Fetching flashcards for document:', documentId);
     const response = await fetch(`${this.baseUrl}/api/flashcards/documents/${documentId}`);
-    console.log('API: Flashcard response status:', response.status);
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error || `Failed to get flashcards: ${response.status} ${response.statusText}`);
     }
+    
     const data = await response.json();
-    console.log('API: Flashcard response data:', data);
     
     // Handle error response from backend
     if (data.error) {
-      console.log('API: Flashcards not ready yet:', data.error);
       return {
         flashcards: [],
         documentName: data.documentName || 'Unknown Document',
