@@ -16,6 +16,7 @@ interface DocumentSummary {
   name: string;
   summary: string | null;
   status: string;
+  summaryStatus: string;
   uploadDate: string;
   readTime?: string;
   keyPoints?: string[];
@@ -49,6 +50,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
             name: document?.name || 'Unknown Document',
             summary: content.summary,
             status: document?.status || 'UNKNOWN',
+            summaryStatus: content.summaryStatus || 'UNKNOWN',
             uploadDate: document?.uploadDate || '',
             readTime: content.summary ? `${Math.ceil(content.summary.split(' ').length / 200)} min read` : undefined,
             keyPoints: content.summary ? extractKeyPoints(content.summary) : undefined
@@ -60,6 +62,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
             name: 'Unknown Document',
             summary: null,
             status: 'ERROR',
+            summaryStatus: 'ERROR',
             uploadDate: '',
             error: error instanceof Error ? error.message : 'Failed to fetch summary'
           };
@@ -213,6 +216,19 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     fetchSummaries();
   }, [documentIds]);
 
+  // Poll for updates when there are documents being processed
+  useEffect(() => {
+    const documentsBeingProcessed = summaries.filter(s => s.summaryStatus === 'PROCESSING');
+    
+    if (documentsBeingProcessed.length > 0) {
+      const interval = setInterval(() => {
+        fetchSummaries();
+      }, 30000); // Poll every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [summaries, documentIds]);
+
   if (uploadedFiles.length === 0) {
     return (
       <Card className="text-center py-12">
@@ -238,8 +254,12 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     );
   }
 
-  const documentsWithSummaries = summaries.filter(s => s.summary);
-  const documentsWithoutSummaries = summaries.filter(s => !s.summary);
+  const documentsWithSummaries = summaries.filter(s => s.summaryStatus === 'READY');
+  const documentsBeingProcessed = summaries.filter(s => s.summaryStatus === 'PROCESSING');
+  const documentsNotProcessed = summaries.filter(s => 
+    s.summaryStatus === 'UPLOADED' || s.summaryStatus === 'ERROR' || 
+    (!s.summaryStatus || s.summaryStatus === 'UNKNOWN')
+  );
   
 
 
@@ -292,11 +312,11 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                         </span>
                       )}
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        item.status === 'READY' ? 'bg-green-100 text-green-600' :
-                        item.status === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
+                        item.summaryStatus === 'READY' ? 'bg-green-100 text-green-600' :
+                        item.summaryStatus === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
                         'bg-gray-100 text-gray-600'
                       }`}>
-                        {item.status}
+                        {item.summaryStatus}
                       </span>
                     </CardDescription>
                   </div>
@@ -311,7 +331,9 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
                   <div className="prose prose-sm max-w-none">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{item.summary}</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {item.summary || 'Summary is ready but content is not available. Please refresh or try again.'}
+                    </p>
                   </div>
                 </div>
 
@@ -364,12 +386,12 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
         </div>
       )}
 
-      {/* Documents without summaries */}
-      {documentsWithoutSummaries.length > 0 && (
+      {/* Documents being processed */}
+      {documentsBeingProcessed.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Documents Being Processed</h3>
           <div className="grid gap-4">
-            {documentsWithoutSummaries.map((item) => (
+            {documentsBeingProcessed.map((item) => (
               <Card key={item.id} className="border-yellow-200 bg-yellow-50">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
@@ -378,18 +400,18 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                       <div>
                         <h4 className="font-medium text-gray-900">{item.name}</h4>
                         <p className="text-sm text-gray-600">
-                          {item.status === 'PROCESSING' ? 'AI is analyzing this document...' : 
-                           item.status === 'ERROR' ? 'Processing failed. Please try uploading again.' :
+                          {item.summaryStatus === 'PROCESSING' ? 'AI is analyzing this document...' : 
+                           item.summaryStatus === 'ERROR' ? 'Processing failed. Please try uploading again.' :
                            'Waiting to be processed...'}
                         </p>
                       </div>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.status === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
-                      item.status === 'ERROR' ? 'bg-red-100 text-red-600' :
+                      item.summaryStatus === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
+                      item.summaryStatus === 'ERROR' ? 'bg-red-100 text-red-600' :
                       'bg-gray-100 text-gray-600'
                     }`}>
-                      {item.status}
+                      {item.summaryStatus}
                     </span>
                   </div>
                 </CardContent>
@@ -399,13 +421,52 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
         </div>
       )}
 
-      {/* No summaries available */}
+      {/* Documents not yet processed */}
+      {documentsNotProcessed.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {documentsNotProcessed.some(d => d.summaryStatus === 'ERROR') ? 'Documents with Issues' : 'Documents Pending Processing'}
+          </h3>
+          <div className="grid gap-4">
+            {documentsNotProcessed.map((item) => (
+              <Card key={item.id} className={`${
+                item.summaryStatus === 'ERROR' ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
+              }`}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className={`h-5 w-5 ${
+                        item.summaryStatus === 'ERROR' ? 'text-red-600' : 'text-gray-600'
+                      }`} />
+                      <div>
+                        <h4 className="font-medium text-gray-900">{item.name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {item.summaryStatus === 'ERROR' ? 'Processing failed. Please try uploading again.' :
+                           'Document uploaded but summary processing hasn\'t started yet.'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      item.summaryStatus === 'ERROR' ? 'bg-red-100 text-red-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {item.summaryStatus === 'ERROR' ? 'ERROR' : 'PENDING'}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No documents at all */}
       {summaries.length === 0 && !loading && (
         <Card className="text-center py-12">
           <CardContent>
             <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No summaries available</h3>
-            <p className="text-gray-600 mb-6">Your documents are being processed. Check back soon!</p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents found</h3>
+            <p className="text-gray-600 mb-6">Upload your course materials to generate AI summaries!</p>
             <Button variant="outline" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh

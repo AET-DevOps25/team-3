@@ -36,6 +36,27 @@ data class DocumentEntity(
     @Column(name = "processed_content")
     var processedContent: JsonNode? = null, // Extracted text, key points, etc.
     
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "quiz_data")
+    var quizData: JsonNode? = null, // Generated quiz questions
+    
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "flashcard_data")
+    var flashcardData: JsonNode? = null, // Generated flashcards
+    
+    // Individual content generation status tracking
+    @Enumerated(EnumType.STRING)
+    @Column(name = "summary_status")
+    var summaryStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "quiz_status")
+    var quizStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "flashcard_status")
+    var flashcardStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    
     // Status and timing
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)

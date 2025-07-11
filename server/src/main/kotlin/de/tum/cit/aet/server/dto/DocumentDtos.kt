@@ -24,6 +24,18 @@ enum class DocumentStatus {
     ERROR           // Processing failed
 }
 
+// Extended status response to track individual content generation
+data class DocumentContentStatus(
+    val documentId: String,
+    val documentName: String,
+    val overallStatus: DocumentStatus,
+    val summaryStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    val quizStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    val flashcardStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    val uploadDate: String,
+    val error: String? = null
+)
+
 data class DocumentMetadata(
     val documentName: String,
     val documentSize: Long,
@@ -49,7 +61,12 @@ data class DocumentContentResponse(
     val originalName: String,
     val summary: String?,
     val processedContent: JsonNode?,
+    val quizData: JsonNode?,
+    val flashcardData: JsonNode?,
     val status: DocumentStatus,
+    val summaryStatus: DocumentStatus,
+    val quizStatus: DocumentStatus,
+    val flashcardStatus: DocumentStatus,
     val uploadDate: String,
     val updatedAt: String
 )
@@ -57,4 +74,12 @@ data class DocumentContentResponse(
 data class UpdateDocumentContentRequest(
     val summary: String?,
     val processedContent: JsonNode?
+)
+
+data class FlashcardApiResponse(
+    val flashcards: List<FlashcardModel>,
+    val documentName: String,
+    val documentId: String,
+    val status: String,
+    val error: String? = null
 ) 

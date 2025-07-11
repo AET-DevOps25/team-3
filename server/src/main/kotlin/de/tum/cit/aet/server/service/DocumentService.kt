@@ -3,6 +3,7 @@ package de.tum.cit.aet.server.service
 import de.tum.cit.aet.server.dto.*
 import de.tum.cit.aet.server.entity.DocumentEntity
 import de.tum.cit.aet.server.repository.DocumentRepository
+import org.slf4j.LoggerFactory
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Async
@@ -15,6 +16,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.CompletableFuture
+import com.fasterxml.jackson.databind.JsonNode
 
 // Event class for document upload completion
 data class DocumentUploadedEvent(
@@ -29,6 +31,8 @@ class DocumentService(
     private val genAiService: GenAiService,
     private val eventPublisher: ApplicationEventPublisher
 ) {
+    
+    private val logger = LoggerFactory.getLogger(DocumentService::class.java)
     
     @Transactional
     fun uploadFiles(files: Array<MultipartFile>): DocumentUploadResponse {
@@ -92,16 +96,16 @@ class DocumentService(
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Async
     fun handleDocumentUploaded(event: DocumentUploadedEvent) {
-        println("Starting async processing for document: ${event.fileName} (ID: ${event.documentId})")
+        logger.info("Starting async processing for document: {} (ID: {})", event.fileName, event.documentId)
         try {
             // Verify document exists before processing
             if (documentRepository.existsById(event.documentId)) {
                 processDocumentAsync(event.documentId, event.fileName, event.fileContent)
             } else {
-                println("Document ${event.documentId} not found after transaction commit!")
+                logger.error("Document {} not found after transaction commit!", event.documentId)
             }
         } catch (e: Exception) {
-            println("Error starting async processing for document ${event.fileName}: ${e.message}")
+            logger.error("Error starting async processing for document {}: {}", event.fileName, e.message, e)
         }
     }
     
@@ -138,7 +142,12 @@ class DocumentService(
             originalName = documentEntity.originalName,
             summary = documentEntity.summary,
             processedContent = documentEntity.processedContent,
+            quizData = documentEntity.quizData,
+            flashcardData = documentEntity.flashcardData,
             status = documentEntity.status,
+            summaryStatus = documentEntity.summaryStatus,
+            quizStatus = documentEntity.quizStatus,
+            flashcardStatus = documentEntity.flashcardStatus,
             uploadDate = documentEntity.uploadDate.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "Z",
             updatedAt = documentEntity.updatedAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) + "Z"
         )
@@ -159,20 +168,139 @@ class DocumentService(
         
         return DocumentListResponse(documents = documents)
     }
-    
+
     @Transactional
-    fun updateDocumentContent(documentId: String, summary: String?, processedContent: com.fasterxml.jackson.databind.JsonNode?) {
+    fun updateDocumentContent(documentId: String, summary: String?, processedContent: JsonNode?) {
         val documentEntity = documentRepository.findById(documentId)
             .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
         
-        documentEntity.summary = summary
-        documentEntity.processedContent = processedContent
-        documentEntity.status = DocumentStatus.PROCESSED
+        if (summary != null) {
+            documentEntity.summary = summary
+            // Ensure summaryStatus is set to READY if summary is updated
+            documentEntity.summaryStatus = DocumentStatus.READY
+        }
+        if (processedContent != null) {
+            documentEntity.processedContent = processedContent
+        }
+        documentEntity.updatedAt = LocalDateTime.now()
+        documentRepository.save(documentEntity)
+    }
+    
+
+    @Transactional
+    fun updateDocumentQuizData(documentId: String, quizData: QuizResponse?) {
+        val documentEntity = documentRepository.findById(documentId)
+            .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+        
+        // Convert QuizResponse to JsonNode for storage
+        val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
+        val quizJson = quizData?.let { response: QuizResponse -> 
+            objectMapper.readTree(objectMapper.writeValueAsString(response))
+        }
+        
+        if (quizJson != null) {
+            documentEntity.quizData = quizJson
+            // Ensure quizStatus is set to READY if quiz is updated
+            documentEntity.quizStatus = DocumentStatus.READY
+        }
         documentEntity.updatedAt = LocalDateTime.now()
         
         documentRepository.save(documentEntity)
     }
     
+    @Transactional
+    fun updateDocumentFlashcardData(documentId: String, flashcardData: FlashcardResponse?) {
+        val documentEntity = documentRepository.findById(documentId)
+            .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+        
+        // Convert FlashcardResponse to JsonNode for storage
+        val objectMapper = com.fasterxml.jackson.databind.ObjectMapper()
+        val flashcardJson = flashcardData?.let { response: FlashcardResponse -> 
+            val jsonString = objectMapper.writeValueAsString(response)
+            logger.info("Saving flashcard JSON for document {}: {}", documentId, jsonString)
+            objectMapper.readTree(jsonString)
+        }
+        
+        if (flashcardJson != null) {
+            documentEntity.flashcardData = flashcardJson
+            // Ensure flashcardStatus is set to READY if flashcards are updated
+            documentEntity.flashcardStatus = DocumentStatus.READY
+            logger.info("Successfully saved flashcard data for document {}", documentId)
+        } else {
+            logger.warn("No flashcard data to save for document {}", documentId)
+        }
+        documentEntity.updatedAt = LocalDateTime.now()
+        
+        documentRepository.save(documentEntity)
+    }
+
+    @Transactional
+    fun updateQuizStatus(documentId: String, status: DocumentStatus) {
+        try {
+            val documentEntity = documentRepository.findById(documentId)
+                .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+            
+            documentEntity.quizStatus = status
+            documentEntity.updatedAt = LocalDateTime.now()
+            documentRepository.save(documentEntity)
+            logger.info("Updated document {} quiz status to {}", documentId, status)
+        } catch (e: Exception) {
+            logger.error("Error updating document {} quiz status: {}", documentId, e.message, e)
+            throw e
+        }
+    }
+
+    @Transactional
+    fun updateSummaryStatus(documentId: String, status: DocumentStatus) {
+        try {
+            val documentEntity = documentRepository.findById(documentId)
+                .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+            
+            documentEntity.summaryStatus = status
+            documentEntity.updatedAt = LocalDateTime.now()
+            documentRepository.save(documentEntity)
+            logger.info("Updated document {} summary status to {}", documentId, status)
+        } catch (e: Exception) {
+            logger.error("Error updating document {} summary status: {}", documentId, e.message, e)
+            throw e
+        }
+    }
+    
+
+    @Transactional
+    fun updateFlashcardStatus(documentId: String, status: DocumentStatus) {
+        try {
+            val documentEntity = documentRepository.findById(documentId)
+                .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+            
+            documentEntity.flashcardStatus = status
+            documentEntity.updatedAt = LocalDateTime.now()
+            documentRepository.save(documentEntity)
+            logger.info("Updated document {} flashcard status to {}", documentId, status)
+        } catch (e: Exception) {
+            logger.error("Error updating document {} flashcard status: {}", documentId, e.message, e)
+            throw e
+        }
+    }
+    
+    
+    @Transactional
+    fun updateDocumentStatus(documentId: String, status: DocumentStatus) {
+        try {
+            val documentEntity = documentRepository.findById(documentId)
+                .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+            
+            documentEntity.status = status
+            documentEntity.updatedAt = LocalDateTime.now()
+            documentRepository.save(documentEntity)
+            logger.info("Updated document {} status to {}", documentId, status)
+        } catch (e: Exception) {
+            logger.error("Error updating document {} status: {}", documentId, e.message, e)
+            throw e
+        }
+    }
+    
+
     @Transactional
     fun deleteDocument(documentId: String) {
         if (!documentRepository.existsById(documentId)) {
@@ -185,57 +313,143 @@ class DocumentService(
     fun processDocumentAsync(documentId: String, fileName: String, fileContent: ByteArray): CompletableFuture<Void> {
         return CompletableFuture.runAsync {
             try {
-                println("Processing document async: $fileName (ID: $documentId)")
+                logger.info("Processing document async: {} (ID: {})", fileName, documentId)
                 
-                // Update status to PROCESSING
+                // Check if document has already been fully processed to avoid re-processing
+                val existingDocument = documentRepository.findById(documentId).orElse(null)
+                if (existingDocument != null && existingDocument.status == DocumentStatus.READY) {
+                    // Check if all content generation is already complete
+                    val summaryReady = existingDocument.summaryStatus == DocumentStatus.READY
+                    val quizReady = existingDocument.quizStatus == DocumentStatus.READY  
+                    val flashcardsReady = existingDocument.flashcardStatus == DocumentStatus.READY
+                    
+                    if (summaryReady && quizReady && flashcardsReady) {
+                        logger.info("Document {} already fully processed, skipping re-processing", fileName)
+                        return@runAsync
+                    }
+                    
+                    // Only process the missing parts
+                    logger.info("Document {} partially processed, completing missing parts: summary={}, quiz={}, flashcards={}", 
+                              fileName, summaryReady, quizReady, flashcardsReady)
+                    
+                    // Generate missing summary
+                    if (!summaryReady && existingDocument.summaryStatus != DocumentStatus.PROCESSING) {
+                        logger.info("Generating missing summary for document: {}", fileName)
+                        updateSummaryStatus(documentId, DocumentStatus.PROCESSING)
+                        val summary = genAiService.generateSummary(documentId)
+                        if (summary != null) {
+                            logger.info("Summary generated successfully")
+                            updateDocumentContent(documentId, summary, null)
+                        } else {
+                            logger.error("Failed to generate summary for document: {}", fileName)
+                            updateSummaryStatus(documentId, DocumentStatus.ERROR)
+                        }
+                    }
+                    
+                    // Generate missing quiz
+                    if (!quizReady && existingDocument.quizStatus != DocumentStatus.PROCESSING) {
+                        logger.info("Generating missing quiz for document: {}", fileName)
+                        updateQuizStatus(documentId, DocumentStatus.PROCESSING)
+                        val quizQuestions = genAiService.generateQuiz(documentId)
+                        if (quizQuestions != null) {
+                            logger.info("Quiz generated successfully")
+                            val quizResponse = QuizResponse(QuizData(questions = quizQuestions))
+                            updateDocumentQuizData(documentId, quizResponse)
+                        } else {
+                            logger.error("Failed to generate quiz for document: {}", fileName)
+                            updateQuizStatus(documentId, DocumentStatus.ERROR)
+                        }
+                    }
+                    
+                    // Generate missing flashcards  
+                    if (!flashcardsReady && existingDocument.flashcardStatus != DocumentStatus.PROCESSING) {
+                        logger.info("Generating missing flashcards for document: {}", fileName)
+                        updateFlashcardStatus(documentId, DocumentStatus.PROCESSING)
+                        val flashcardModels = genAiService.generateFlashcards(documentId)
+                        if (flashcardModels != null) {
+                            logger.info("Flashcards generated successfully")
+                            val flashcardResponse = FlashcardResponse(FlashcardsData(flashcards = flashcardModels))
+                            updateDocumentFlashcardData(documentId, flashcardResponse)
+                        } else {
+                            logger.error("Failed to generate flashcards for document: {}", fileName)
+                            updateFlashcardStatus(documentId, DocumentStatus.ERROR)
+                        }
+                    }
+                    
+                    return@runAsync
+                }
+                
+                // Continue with normal processing for new documents
+                // Update overall status to PROCESSING
                 updateDocumentStatus(documentId, DocumentStatus.PROCESSING)
                 
+                // Check if GenAI service is available
+                if (!genAiService.isServiceAvailable()) {
+                    logger.warn("GenAI service is not available, skipping processing for document: {}", fileName)
+                    updateDocumentStatus(documentId, DocumentStatus.ERROR)
+                    return@runAsync
+                }
+                
                 // Create session in GenAI service
-                println("Creating GenAI session for document: $fileName")
+                logger.info("Creating GenAI session for document: {}", fileName)
                 val sessionResult = genAiService.createSession(documentId, fileName, fileContent)
                 
                 if (sessionResult != null) {
-                    println("GenAI session created successfully")
+                    logger.info("GenAI session created successfully")
+                    updateDocumentStatus(documentId, DocumentStatus.READY)
                     
                     // Generate summary
-                    println("Generating summary for document: $fileName")
+                    logger.info("Generating summary for document: {}", fileName)
+                    updateSummaryStatus(documentId, DocumentStatus.PROCESSING)
                     val summary = genAiService.generateSummary(documentId)
-                    
+
                     if (summary != null) {
-                        println("Summary generated successfully")
-                        // Update document with summary and mark as processed
+                        logger.info("Summary generated successfully")
                         updateDocumentContent(documentId, summary, null)
-                        updateDocumentStatus(documentId, DocumentStatus.READY)
+                        // Remove redundant call - updateDocumentContent already sets status to READY
                     } else {
-                        println("Failed to generate summary")
-                        updateDocumentStatus(documentId, DocumentStatus.ERROR)
+                        logger.error("Failed to generate summary for document: {}", fileName)
+                        updateSummaryStatus(documentId, DocumentStatus.ERROR)
+                    }
+                    
+                    // Generate quiz
+                    logger.info("Generating quiz for document: {}", fileName)
+                    updateQuizStatus(documentId, DocumentStatus.PROCESSING)
+                    val quizQuestions = genAiService.generateQuiz(documentId)
+
+                    if (quizQuestions != null) {
+                        logger.info("Quiz generated successfully")
+                        val quizResponse = QuizResponse(QuizData(questions = quizQuestions))
+                        updateDocumentQuizData(documentId, quizResponse)
+                        // Remove redundant call - updateDocumentQuizData already sets status to READY
+                    } else {
+                        logger.error("Failed to generate quiz for document: {}", fileName)
+                        updateQuizStatus(documentId, DocumentStatus.ERROR)
+                    }
+                    
+                    // Generate flashcards
+                    logger.info("Generating flashcards for document: {}", fileName)
+                    updateFlashcardStatus(documentId, DocumentStatus.PROCESSING)
+                    val flashcardModels = genAiService.generateFlashcards(documentId)
+
+                    if (flashcardModels != null) {
+                        logger.info("Flashcards generated successfully")
+                        val flashcardResponse = FlashcardResponse(FlashcardsData(flashcards = flashcardModels))
+                        updateDocumentFlashcardData(documentId, flashcardResponse)
+                        // Remove redundant call - updateDocumentFlashcardData already sets status to READY
+                    } else {
+                        logger.error("Failed to generate flashcards for document: {}", fileName)
+                        updateFlashcardStatus(documentId, DocumentStatus.ERROR)
                     }
                 } else {
-                    println("Failed to create GenAI session")
+                    logger.error("Failed to create GenAI session")
                     updateDocumentStatus(documentId, DocumentStatus.ERROR)
                 }
                 
             } catch (e: Exception) {
-                println("Error processing document $fileName: ${e.message}")
-                e.printStackTrace()
+                logger.error("Error processing document {}: {}", fileName, e.message, e)
                 updateDocumentStatus(documentId, DocumentStatus.ERROR)
             }
-        }
-    }
-    
-    @Transactional
-    fun updateDocumentStatus(documentId: String, status: DocumentStatus) {
-        try {
-            val documentEntity = documentRepository.findById(documentId)
-                .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
-            
-            documentEntity.status = status
-            documentEntity.updatedAt = LocalDateTime.now()
-            documentRepository.save(documentEntity)
-            println("Updated document $documentId status to $status")
-        } catch (e: Exception) {
-            println("Error updating document $documentId status: ${e.message}")
-            throw e
         }
     }
     
