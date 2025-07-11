@@ -48,3 +48,11 @@ Start with both flags:
 ```bash
 ./start-dev -r -d
 ```
+
+### Stop the  Dev Environment
+
+Use the helper script to stop your local environment:
+
+```bash
+./stop-dev
+```

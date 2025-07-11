@@ -34,6 +34,12 @@
         owner: root
         group: root
 
+    - name: Copy Prometheus configuration files
+      copy:
+        src: ../../monitoring/prometheus/
+        dest: "{{ project_dir }}/monitoring/prometheus/"
+
+
     - name: Log in to GHCR
       shell: |
         echo "{{ lookup('env','GITHUB_TOKEN') }}" | docker login ghcr.io -u "{{ lookup('env','GITHUB_ACTOR') }}" --password-stdin
