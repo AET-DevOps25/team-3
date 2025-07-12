@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Brain, CheckCircle, XCircle, Trophy, RotateCcw, Loader2, FileText } from 'lucide-react';
-import { apiService } from '../lib/api';
+import { apiService, DocumentStatus } from '../lib/api';
 
 interface QuizTabProps {
   uploadedFiles: File[];
@@ -25,7 +25,7 @@ interface QuizData {
   questions: QuizQuestion[];
   documentName: string;
   documentId: string;
-  status?: 'GENERATING' | 'READY' | 'FAILED' | 'PENDING';
+  status?: DocumentStatus | 'PENDING';
   error?: string;
 }
 
@@ -103,7 +103,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
               questions: [],
               documentName: documentContent.originalName || 'Unknown Document',
               documentId,
-              status: 'GENERATING',
+              status: 'PROCESSING',
               error: 'Quiz is being generated automatically...'
             };
           }
@@ -112,7 +112,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
           if (documentContent.quizStatus === 'ERROR') {
             const res = await apiService.getQuizForDocument(documentId);
             
-            if (res.status === 'GENERATING') {
+            if (res.status === 'PROCESSING') {
               pollQuizStatus(documentId);
             }
             
@@ -124,7 +124,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
             questions: [],
             documentName: documentContent.originalName || 'Unknown Document',
             documentId,
-            status: 'GENERATING',
+            status: 'PROCESSING',
             error: 'Waiting for automatic quiz generation...'
           };
           
@@ -133,7 +133,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
             questions: [],
             documentName: 'Unknown Document',
             documentId,
-            status: 'FAILED',
+            status: 'ERROR',
             error: error instanceof Error ? error.message : 'Failed to fetch quiz',
           };
         }
@@ -148,7 +148,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
           questions: result.questions || [],
           documentName: result.documentName || 'Unknown Document',
           documentId: result.documentId,
-          status: result.status as 'GENERATING' | 'READY' | 'FAILED' | 'PENDING',
+          status: result.status as 'PROCESSING' | 'READY' | 'ERROR' | 'PENDING',
           error: result.error
         }));
         return [...existingQuizzes, ...mappedResults];
@@ -166,7 +166,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
       try {
         const res = await apiService.getQuizForDocument(documentId);
         
-        if (res.status === 'READY' || res.status === 'FAILED') {
+        if (res.status === 'READY' || res.status === 'ERROR') {
           setQuizzes(prevQuizzes => {
             const updatedQuizzes = prevQuizzes.map(q => 
               q.documentId === documentId ? res : q
@@ -184,7 +184,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
             const updatedQuizzes = prevQuizzes.map(q => 
               q.documentId === documentId ? {
                 ...q,
-                status: 'FAILED' as const,
+                status: 'ERROR' as const,
                 error: 'Quiz generation timed out. Please try again.'
               } : q
             );
@@ -249,11 +249,11 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
   };
 
   const readyQuizzes = quizzes.filter(q => q.status === 'READY' && q.questions && q.questions.length > 0);
-  const generatingQuizzes = quizzes.filter(q => q.status === 'GENERATING');
-  const failedQuizzes = quizzes.filter(q => q.status === 'FAILED');
+  const generatingQuizzes = quizzes.filter(q => q.status === 'PROCESSING');
+  const failedQuizzes = quizzes.filter(q => q.status === 'ERROR');
   const pendingQuizzes = quizzes.filter(q => 
     !q.status || q.status === 'PENDING' || 
-    (q.status !== 'READY' && q.status !== 'GENERATING' && q.status !== 'FAILED')
+    (q.status !== 'READY' && q.status !== 'PROCESSING' && q.status !== 'ERROR')
   );
 
   return (

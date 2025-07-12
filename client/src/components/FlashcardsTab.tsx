@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BookOpen, RotateCcw, ChevronLeft, ChevronRight, Shuffle, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { apiService, FlashcardModel } from '../lib/api';
+import { apiService, FlashcardModel, DocumentStatus } from '../lib/api';
 
 interface FlashcardsTabProps {
   uploadedFiles: File[];
@@ -17,7 +17,7 @@ interface FlashcardDeck {
   cardCount: number;
   source: string;
   difficulty: string;
-  status?: 'GENERATING' | 'READY' | 'FAILED' | 'PENDING';
+  status?: DocumentStatus | 'PENDING';
   error?: string;
   flashcards: FlashcardModel[];
 }
@@ -105,7 +105,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
               cardCount: 0,
               source: documentContent.originalName || 'Unknown Document',
               difficulty: 'Unknown',
-              status: 'GENERATING',
+              status: 'PROCESSING',
               error: 'Flashcards are being generated automatically...',
               flashcards: []
             };
@@ -115,7 +115,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
           if (documentContent.flashcardStatus === 'ERROR') {
             const res = await apiService.getFlashcardsForDocument(documentId);
             
-            if (res.status === 'GENERATING') {
+            if (res.status === 'PROCESSING') {
               pollFlashcardStatus(documentId);
             }
             
@@ -140,7 +140,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
             cardCount: 0,
             source: documentContent.originalName || 'Unknown Document',
             difficulty: 'Unknown',
-            status: 'GENERATING',
+            status: 'PROCESSING',
             error: 'Waiting for automatic flashcard generation...',
             flashcards: []
           };
@@ -153,7 +153,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
             cardCount: 0,
             source: 'Unknown Document',
             difficulty: 'Unknown',
-            status: 'FAILED',
+            status: 'ERROR',
             error: error instanceof Error ? error.message : 'Failed to fetch flashcards',
             flashcards: []
           };
@@ -177,7 +177,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
           cardCount: result.cardCount,
           source: result.source,
           difficulty: result.difficulty,
-          status: result.status as 'GENERATING' | 'READY' | 'FAILED' | 'PENDING',
+                      status: result.status as 'PROCESSING' | 'READY' | 'ERROR' | 'PENDING',
           error: result.error,
           flashcards: result.flashcards
         }));
@@ -196,7 +196,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
       try {
         const res = await apiService.getFlashcardsForDocument(documentId);
         
-        if (res.status === 'READY' || res.status === 'FAILED') {
+        if (res.status === 'READY' || res.status === 'ERROR') {
           setFlashcardDecks(prevDecks => {
             const updatedDecks = prevDecks.map(d => 
               d.id === documentId ? {
@@ -224,7 +224,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
             const updatedDecks = prevDecks.map(d => 
               d.id === documentId ? {
                 ...d,
-                status: 'FAILED' as const,
+                status: 'ERROR' as const,
                 error: 'Flashcard generation timed out. Please try again.'
               } : d
             );
@@ -264,11 +264,11 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
   };
 
   const readyFlashcards = flashcardDecks.filter(deck => deck.status === 'READY' && deck.flashcards && deck.flashcards.length > 0);
-  const generatingFlashcards = flashcardDecks.filter(deck => deck.status === 'GENERATING');
-  const failedFlashcards = flashcardDecks.filter(deck => deck.status === 'FAILED');
+  const generatingFlashcards = flashcardDecks.filter(deck => deck.status === 'PROCESSING');
+  const failedFlashcards = flashcardDecks.filter(deck => deck.status === 'ERROR');
   const pendingFlashcards = flashcardDecks.filter(deck => 
     !deck.status || deck.status === 'PENDING' || 
-    (deck.status !== 'READY' && deck.status !== 'GENERATING' && deck.status !== 'FAILED')
+    (deck.status !== 'READY' && deck.status !== 'PROCESSING' && deck.status !== 'ERROR')
   );
 
   return (

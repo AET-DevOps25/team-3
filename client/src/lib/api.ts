@@ -1,6 +1,9 @@
 // API service for communicating with the Spring Boot backend
 const API_BASE_URL = 'http://localhost:8082';
 
+// Common status type used throughout the application
+export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+
 export interface DocumentUploadResponse {
   documentIds: string[];
   status: string;
@@ -12,7 +15,7 @@ export interface DocumentInfo {
   size: number;
   uploadDate: string;
   type: string;
-  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+  status: DocumentStatus;
 }
 
 export interface DocumentListResponse {
@@ -21,7 +24,7 @@ export interface DocumentListResponse {
 
 export interface DocumentStatusResponse {
   documentId: string;
-  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+  status: DocumentStatus;
   documentName: string;
   uploadDate: string;
 }
@@ -33,10 +36,10 @@ export interface DocumentContentResponse {
   processedContent: any;
   quizData: any;
   flashcardData: any;
-  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
-  summaryStatus: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
-  quizStatus: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
-  flashcardStatus: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+  status: DocumentStatus;
+  summaryStatus: DocumentStatus;
+  quizStatus: DocumentStatus;
+  flashcardStatus: DocumentStatus;
   uploadDate: string;
   updatedAt: string;
 }
@@ -57,7 +60,7 @@ export interface FlashcardApiResponse {
   flashcards: FlashcardModel[];
   documentName: string;
   documentId: string;
-  status: 'GENERATING' | 'READY' | 'FAILED';
+  status: DocumentStatus;
   error?: string;
 }
 
@@ -105,7 +108,7 @@ export interface QuizApiResponse {
   questions: any[];
   documentName: string;
   documentId: string;
-  status: 'GENERATING' | 'READY' | 'FAILED';
+  status: DocumentStatus;
   error?: string;
 }
 
@@ -273,7 +276,7 @@ class ApiService {
         questions: data.questions || [],
         documentName: data.documentName || 'Unknown Document',
         documentId: documentId,
-        status: data.status || 'FAILED',
+        status: data.status || 'ERROR',
         error: data.error
       };
     }
@@ -304,7 +307,7 @@ class ApiService {
         flashcards: [],
         documentName: data.documentName || 'Unknown Document',
         documentId: documentId,
-        status: 'FAILED',
+        status: 'ERROR',
         error: data.error
       };
     }
@@ -313,7 +316,7 @@ class ApiService {
       flashcards: data.flashcards || [],
       documentName: data.documentName || 'Unknown Document',
       documentId: documentId,
-      status: data.status || 'FAILED'
+      status: data.status || 'ERROR'
     };
   }
 }
