@@ -1,5 +1,7 @@
-// API service for communicating with the Spring Boot backend
-const API_BASE_URL = 'http://localhost:8082';
+// API service for communicating with the StudyMate microservices
+const AUTH_SERVICE_URL = 'http://localhost:8081';
+const DOCUMENT_SERVICE_URL = 'http://localhost:8082';
+const AI_SERVICE_URL = 'http://localhost:8083';
 
 // Common status type used throughout the application
 export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
@@ -226,15 +228,23 @@ export interface QuizApiResponse {
   error?: string;
 }
 
+// Main API service class
 class ApiService {
-  private baseUrl: string;
+  private authServiceUrl: string;
+  private documentServiceUrl: string;
+  private aiServiceUrl: string;
   private refreshing: boolean = false;
 
-  constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+  constructor(
+    authServiceUrl: string = AUTH_SERVICE_URL,
+    documentServiceUrl: string = DOCUMENT_SERVICE_URL,
+    aiServiceUrl: string = AI_SERVICE_URL
+  ) {
+    this.authServiceUrl = authServiceUrl;
+    this.documentServiceUrl = documentServiceUrl;
+    this.aiServiceUrl = aiServiceUrl;
   }
 
-  // Get headers with authorization if available
   private getHeaders(includeAuth: boolean = true): HeadersInit {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -250,116 +260,108 @@ class ApiService {
     return headers;
   }
 
-  // Enhanced fetch with automatic token refresh
   private async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
     const token = TokenManager.getToken();
     
-    // Add authorization header
-    if (token) {
-      options.headers = {
-        ...options.headers,
-        'Authorization': `Bearer ${token}`,
-      };
+    if (!token) {
+      throw new Error('No authentication token available');
     }
 
-    let response = await fetch(url, options);
-
-    // If token is expired, try to refresh
-    if (response.status === 401 && token && !this.refreshing) {
-      this.refreshing = true;
-      
-      try {
-        await this.refreshToken();
-        const newToken = TokenManager.getToken();
-        
-        if (newToken) {
-          // Retry the original request with new token
-          options.headers = {
-            ...options.headers,
-            'Authorization': `Bearer ${newToken}`,
-          };
-          response = await fetch(url, options);
+    // Check if token is expired
+    if (TokenManager.isTokenExpired(token)) {
+      if (!this.refreshing) {
+        this.refreshing = true;
+        try {
+          await this.refreshToken();
+        } finally {
+          this.refreshing = false;
         }
-      } catch (error) {
-        // Refresh failed, clear tokens and redirect to login
-        TokenManager.clearTokens();
-        window.location.href = '/login';
-        throw error;
-      } finally {
-        this.refreshing = false;
+      }
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers: this.getHeaders(),
+    });
+
+    if (response.status === 401) {
+      // Token might be invalid, try to refresh
+      if (!this.refreshing) {
+        this.refreshing = true;
+        try {
+          await this.refreshToken();
+          // Retry the request with new token
+          const newResponse = await fetch(url, {
+            ...options,
+            headers: this.getHeaders(),
+          });
+          return newResponse;
+        } finally {
+          this.refreshing = false;
+        }
       }
     }
 
     return response;
   }
 
-  // Authentication methods
+  // Authentication methods (Auth Service)
   async register(userData: UserRegistrationRequest): Promise<JwtAuthenticationResponse> {
-    const response = await fetch(`${this.baseUrl}/api/auth/register`, {
+    const response = await fetch(`${this.authServiceUrl}/api/auth/register`, {
       method: 'POST',
       headers: this.getHeaders(false),
       body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Registration failed: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Registration failed');
     }
 
     const data = await response.json();
-    
-    // Store tokens
     TokenManager.setToken(data.token);
     TokenManager.setRefreshToken(data.refreshToken);
-    
     return data;
   }
 
   async login(credentials: UserLoginRequest): Promise<JwtAuthenticationResponse> {
-    const response = await fetch(`${this.baseUrl}/api/auth/login`, {
+    const response = await fetch(`${this.authServiceUrl}/api/auth/login`, {
       method: 'POST',
       headers: this.getHeaders(false),
       body: JSON.stringify(credentials),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Login failed: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Login failed');
     }
 
     const data = await response.json();
-    
-    // Store tokens
     TokenManager.setToken(data.token);
     TokenManager.setRefreshToken(data.refreshToken);
-    
     return data;
   }
 
   async refreshToken(): Promise<JwtRefreshResponse> {
     const refreshToken = TokenManager.getRefreshToken();
-    
     if (!refreshToken) {
       throw new Error('No refresh token available');
     }
 
-    const response = await fetch(`${this.baseUrl}/api/auth/refresh`, {
+    const response = await fetch(`${this.authServiceUrl}/api/auth/refresh`, {
       method: 'POST',
       headers: this.getHeaders(false),
       body: JSON.stringify({ refreshToken }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Token refresh failed: ${response.status} ${response.statusText}`);
+      TokenManager.clearTokens();
+      throw new Error('Token refresh failed');
     }
 
     const data = await response.json();
-    
-    // Update tokens
     TokenManager.setToken(data.token);
     TokenManager.setRefreshToken(data.refreshToken);
-    
     return data;
   }
 
@@ -368,276 +370,219 @@ class ApiService {
   }
 
   async getCurrentUser(): Promise<UserResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/auth/me`);
-
+    const response = await this.authenticatedFetch(`${this.authServiceUrl}/api/auth/profile`);
+    
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to get current user: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to get user profile');
     }
 
     return response.json();
   }
 
   async updateUser(userData: UserUpdateRequest): Promise<UserResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/auth/me`, {
+    const response = await this.authenticatedFetch(`${this.authServiceUrl}/api/auth/profile`, {
       method: 'PUT',
-      headers: this.getHeaders(),
       body: JSON.stringify(userData),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to update user: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to update user');
     }
 
     return response.json();
   }
 
   async changePassword(passwordData: UserPasswordChangeRequest): Promise<{ message: string }> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/auth/me/password`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
+    const response = await this.authenticatedFetch(`${this.authServiceUrl}/api/auth/change-password`, {
+      method: 'POST',
       body: JSON.stringify(passwordData),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Failed to change password: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to change password');
     }
 
     return response.json();
   }
 
-  // Check if user is authenticated
   isAuthenticated(): boolean {
     const token = TokenManager.getToken();
     return token !== null && !TokenManager.isTokenExpired(token);
   }
 
-  // Get current user from token
   getCurrentUserFromToken(): Partial<UserResponse> | null {
     const token = TokenManager.getToken();
-    
-    if (!token) {
-      return null;
-    }
+    if (!token) return null;
 
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return {
-        username: payload.sub,
-        // Add other user info if available in token
+        id: payload.sub,
+        username: payload.username,
+        email: payload.email,
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        role: payload.role,
       };
     } catch (error) {
       return null;
     }
   }
 
+  // Document methods (Document Service)
   async uploadFiles(files: File[]): Promise<DocumentUploadResponse> {
     const formData = new FormData();
-    
-    // Append all files to the form data
-    files.forEach((file) => {
+    files.forEach(file => {
       formData.append('files', file);
     });
 
-    const token = TokenManager.getToken();
-    const headers: HeadersInit = {};
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${this.baseUrl}/api/documents/upload`, {
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents/upload`, {
       method: 'POST',
-      headers,
+      headers: {
+        'Authorization': `Bearer ${TokenManager.getToken()}`,
+      },
       body: formData,
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Upload failed: ${response.status} ${response.statusText}`);
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Upload failed');
     }
 
     return response.json();
   }
 
   async getDocumentStatus(documentId: string): Promise<DocumentStatusResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/documents/${documentId}/status`);
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents/${documentId}/status`);
     
     if (!response.ok) {
-      throw new Error(`Failed to get document status: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to get document status');
     }
 
     return response.json();
   }
 
   async listDocuments(): Promise<DocumentListResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/documents`);
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents`);
     
     if (!response.ok) {
-      throw new Error(`Failed to list documents: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to list documents');
     }
 
     return response.json();
   }
 
   async downloadDocument(documentId: string): Promise<Blob> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/documents/${documentId}/download`);
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents/${documentId}/download`);
     
     if (!response.ok) {
-      throw new Error(`Failed to download document: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to download document');
     }
 
     return response.blob();
   }
 
   async deleteDocument(documentId: string): Promise<void> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/documents/${documentId}`, {
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents/${documentId}`, {
       method: 'DELETE',
     });
-    
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to delete document: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to delete document');
     }
   }
 
   async getDocumentContent(documentId: string): Promise<DocumentContentResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/documents/${documentId}/content`);
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents/${documentId}/content`);
     
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to get document content: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to get document content');
     }
 
     return response.json();
   }
 
   async updateDocumentContent(documentId: string, summary: string, processedContent: any): Promise<{message: string}> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/documents/${documentId}/content`, {
+    const response = await this.authenticatedFetch(`${this.documentServiceUrl}/api/documents/${documentId}/content`, {
       method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify({
-        summary,
-        processedContent,
-      }),
+      body: JSON.stringify({ summary, processedContent }),
     });
-    
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to update document content: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to update document content');
     }
 
     return response.json();
   }
 
-  // Chat methods
+  // Chat methods (AI Service)
   async createChatSession(documentIds: string[]): Promise<ChatSessionResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/chat/sessions`, {
+    const response = await this.authenticatedFetch(`${this.aiServiceUrl}/api/ai/chat/session`, {
       method: 'POST',
-      headers: this.getHeaders(),
       body: JSON.stringify({ documentIds }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to create chat session: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to create chat session');
     }
 
     return response.json();
   }
 
   async getChatSession(sessionId: string): Promise<ChatSessionResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/chat/sessions/${sessionId}`);
+    const response = await this.authenticatedFetch(`${this.aiServiceUrl}/api/ai/chat/session/${sessionId}`);
     
     if (!response.ok) {
-      throw new Error(`Failed to get chat session: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to get chat session');
     }
 
     return response.json();
   }
 
   async sendMessage(sessionId: string, message: string, documentIds: string[] = []): Promise<ChatMessageResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/chat/sessions/${sessionId}/messages`, {
+    const response = await this.authenticatedFetch(`${this.aiServiceUrl}/api/ai/chat/message`, {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ 
-        message,
-        documentIds 
-      }),
+      body: JSON.stringify({ sessionId, message, documentIds }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to send message: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to send message');
     }
 
     return response.json();
   }
 
+  // Quiz methods (AI Service)
   async getQuizForDocument(documentId: string): Promise<QuizApiResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/quiz/documents/${documentId}`);
-    
+    const response = await this.authenticatedFetch(`${this.aiServiceUrl}/api/ai/generate-quiz`, {
+      method: 'POST',
+      body: JSON.stringify({ documentId }),
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to get quiz: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to get quiz for document');
     }
-    
-    const data = await response.json();
-    
-    // Handle error response from backend 
-    if (data.error) {
-      return {
-        questions: data.questions || [],
-        documentName: data.documentName || 'Unknown Document',
-        documentId: documentId,
-        status: data.status || 'ERROR',
-        error: data.error
-      };
-    }
-    
-    // Map correct_answer to correctAnswer for each question
-    if (data && data.questions && Array.isArray(data.questions)) {
-      data.questions = data.questions.map(q => ({
-        ...q,
-        correctAnswer: q.correct_answer,
-      }));
-    }
-    return data;
+
+    return response.json();
   }
 
+  // Flashcard methods (AI Service)
   async getFlashcardsForDocument(documentId: string): Promise<FlashcardApiResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/flashcards/documents/${documentId}`);
-    
+    const response = await this.authenticatedFetch(`${this.aiServiceUrl}/api/ai/generate-flashcards`, {
+      method: 'POST',
+      body: JSON.stringify({ documentId }),
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to get flashcards: ${response.status} ${response.statusText}`);
+      throw new Error('Failed to get flashcards for document');
     }
-    
-    const data = await response.json();
-    
-    // Handle error response from backend
-    if (data.error) {
-      return {
-        flashcards: [],
-        documentName: data.documentName || 'Unknown Document',
-        documentId: documentId,
-        status: 'ERROR',
-        error: data.error
-      };
-    }
-    
-    return {
-      flashcards: data.flashcards || [],
-      documentName: data.documentName || 'Unknown Document',
-      documentId: documentId,
-      status: data.status || 'ERROR'
-    };
+
+    return response.json();
   }
 }
 
+// Export singleton instance
 export const apiService = new ApiService();
-export { TokenManager };
-
-export default apiService; 
+export { TokenManager }; 

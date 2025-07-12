@@ -15,28 +15,69 @@ services:
     networks:
       - dev-network
     depends_on:
-      - server
+      - auth-service
+      - document-service
+      - ai-service
 
-  server:
+  auth-service:
     build:
-      context: ./server
+      context: ./microservices/auth-service
       dockerfile: Dockerfile
-    container_name: studymate-server-dev
+    container_name: studymate-auth-service-dev
     restart: unless-stopped
     ports:
-      - "8082:8082"  # Spring Boot API
+      - "8081:8081"  # Auth Service API
     networks:
       - dev-network
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studymate
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studymate_auth
       - SPRING_DATASOURCE_USERNAME=studymate_user
       - SPRING_DATASOURCE_PASSWORD=studymate_password
       - SPRING_PROFILES_ACTIVE=dev
-      - GENAI_SERVICE_URL=http://genai:8081
+      - JWT_SECRET=your-super-secret-jwt-key-for-development-only-change-in-production
+    depends_on:
+      - postgres
+
+  document-service:
+    build:
+      context: ./microservices/document-service
+      dockerfile: Dockerfile
+    container_name: studymate-document-service-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8082"  # Document Service API
+    networks:
+      - dev-network
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studymate_documents
+      - SPRING_DATASOURCE_USERNAME=studymate_user
+      - SPRING_DATASOURCE_PASSWORD=studymate_password
+      - SPRING_PROFILES_ACTIVE=dev
+      - AI_SERVICE_URL=http://ai-service:8083
+    depends_on:
+      - postgres
+      - ai-service
+
+  ai-service:
+    build:
+      context: ./microservices/ai-service
+      dockerfile: Dockerfile
+    container_name: studymate-ai-service-dev
+    restart: unless-stopped
+    ports:
+      - "8083:8083"  # AI Service API
+    networks:
+      - dev-network
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/studymate_ai
+      - SPRING_DATASOURCE_USERNAME=studymate_user
+      - SPRING_DATASOURCE_PASSWORD=studymate_password
+      - SPRING_PROFILES_ACTIVE=dev
+      - DOCUMENT_SERVICE_URL=http://document-service:8082
+      - AI_OPENAI_API_KEY=your-openai-api-key-here
     depends_on:
       - postgres
       - weaviate
-      - genai
 
   genai:
     build:
@@ -45,12 +86,12 @@ services:
     container_name: studymate-genai-dev
     restart: unless-stopped
     ports:
-      - "8081:8081"  # FastAPI GenAI service
+      - "8085:8081"  # FastAPI GenAI service (external:internal)
     networks:
       - dev-network
     environment:
       - WEAVIATE_HOST=weaviate
-      - WEAVIATE_PORT=8083
+      - WEAVIATE_PORT=8084
       - PYTHONPATH=/app
     depends_on:
       - weaviate
@@ -69,7 +110,7 @@ services:
       POSTGRES_PASSWORD: studymate_password
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
-      - ./server/src/main/resources/database_setup.sql:/docker-entrypoint-initdb.d/database_setup.sql
+      - ./database_setup.sql:/docker-entrypoint-initdb.d/database_setup.sql
     networks:
       - dev-network
 
@@ -81,11 +122,11 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - '8083'
+      - '8084'
       - --scheme
       - http
     ports:
-      - "8083:8083"  # Weaviate vector database
+      - "8084:8084"  # Weaviate vector database
       - "50051:50051"  # gRPC port
     volumes:
       - weaviate_dev_data:/var/lib/weaviate
