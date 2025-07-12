@@ -24,8 +24,7 @@ data class DocumentEntity(
     val fileType: String?,
     
     // Raw file content (for download)
-    @Lob
-    @Column(name = "file_content")
+    @Column(name = "file_content", columnDefinition = "TEXT")
     val fileContent: String?, // Base64 encoded, nullable after processing
     
     // AI-processed content
@@ -70,5 +69,10 @@ data class DocumentEntity(
     
     // Optional metadata
     @Column(name = "page_count")
-    val pageCount: Int? = null
+    val pageCount: Int? = null,
+    
+    // User relationship
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    val user: UserEntity
 )

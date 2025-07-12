@@ -20,19 +20,20 @@ class ChatService(
     
     private val logger = LoggerFactory.getLogger(ChatService::class.java)
 
-    fun createChatSession(request: ChatSessionRequest): ChatSessionResponse {
+    fun createChatSession(request: ChatSessionRequest, user: UserEntity): ChatSessionResponse {
         val sessionId = UUID.randomUUID().toString()
         
-        // Validate document IDs exist
+        // Validate document IDs exist and belong to the user
         val validDocumentIds = request.documentIds.filter { documentId ->
-            documentRepository.existsById(documentId)
+            documentRepository.existsByIdAndUser(documentId, user)
         }
         
         val chatSession = ChatSessionEntity(
             id = sessionId,
             documentIds = validDocumentIds,
             createdAt = LocalDateTime.now(),
-            updatedAt = LocalDateTime.now()
+            updatedAt = LocalDateTime.now(),
+            user = user
         )
         
         chatSessionRepository.save(chatSession)
@@ -47,9 +48,9 @@ class ChatService(
         )
     }
     
-    fun sendMessage(sessionId: String, request: ChatMessageRequest): ChatMessageResponse {
-        val chatSession = chatSessionRepository.findById(sessionId)
-            .orElseThrow { IllegalArgumentException("Chat session not found: $sessionId") }
+    fun sendMessage(sessionId: String, request: ChatMessageRequest, user: UserEntity): ChatMessageResponse {
+        val chatSession = chatSessionRepository.findByIdAndUser(sessionId, user)
+            ?: throw IllegalArgumentException("Chat session not found: $sessionId")
         
         // Save user message
         val userMessage = ChatMessageEntity(
@@ -94,8 +95,8 @@ class ChatService(
         )
     }
     
-    fun getChatSession(sessionId: String): ChatSessionResponse {
-        val chatSession = chatSessionRepository.findByIdWithMessages(sessionId)
+    fun getChatSession(sessionId: String, user: UserEntity): ChatSessionResponse {
+        val chatSession = chatSessionRepository.findByIdAndUser(sessionId, user)
             ?: throw IllegalArgumentException("Chat session not found: $sessionId")
         
         val messages = chatMessageRepository.findByChatSessionIdOrderByTimestamp(sessionId)
