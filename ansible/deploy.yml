@@ -37,6 +37,10 @@
         src: ../monitoring/prometheus/
         dest: "{{ project_dir }}/monitoring/prometheus/"
 
+    - name: Copy Grafana configuration files
+      copy:
+        src: ../monitoring/grafana/
+        dest: "{{ project_dir }}/monitoring/grafana/"
 
     - name: Log in to GHCR
       shell: |

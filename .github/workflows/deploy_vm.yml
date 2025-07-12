@@ -91,6 +91,8 @@ jobs:
           OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          GRAFANA_ADMIN_USERNAME: ${{ secrets.GRAFANA_ADMIN_USERNAME }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: ansible-playbook -i inventory.ini ansible/deploy.yml
 
   deploy-k8s:
