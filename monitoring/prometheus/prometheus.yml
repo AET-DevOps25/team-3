@@ -2,15 +2,22 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'prod'
+# Prod jobs
+  - job_name: 'genai'
     static_configs:
       - targets: ['genai:8081']
-        labels:
-            app: "genai-server"
+
+  - job_name: 'server'
+    static_configs:
+      - targets: ['server:8082']
+    metrics_path: /actuator/prometheus
 
   # For dev only (when services are run manually)
-  - job_name: 'dev'
+  - job_name: 'genai-dev'
     static_configs:
-      - targets: ['host.docker.internal:8000'] # genai
-        labels:
-            app: "genai-server"
+      - targets: ['host.docker.internal:8000']
+
+  - job_name: 'server-dev'
+    static_configs:
+      - targets: ['host.docker.internal:8082']
+    metrics_path: /actuator/prometheus
