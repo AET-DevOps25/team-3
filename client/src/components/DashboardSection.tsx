@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, FileText, Brain, MessageSquare, BookOpen, Upload, Sparkles } from 'lucide-react';
+import { ArrowLeft, FileText, Brain, MessageSquare, BookOpen, Upload, Sparkles, Loader2 } from 'lucide-react';
 import UploadSection from '@/components/UploadSection';
 import SummaryTab from '@/components/SummaryTab';
 import QuizTab from '@/components/QuizTab';
@@ -18,9 +17,10 @@ interface DashboardSectionProps {
   uploadedFiles: UploadedFileWithId[];
   onFileUpload: (files: File[], documentIds: string[]) => void;
   onBackToHome: () => void;
+  isLoadingDocuments?: boolean;
 }
 
-const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: DashboardSectionProps) => {
+const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome, isLoadingDocuments = false }: DashboardSectionProps) => {
   const [activeTab, setActiveTab] = useState('upload');
   const [quizzes, setQuizzes] = useState([]);
   const [answers, setAnswers] = useState({}); // answers: { [documentId: string]: { [questionIndex: number]: string | number } }
@@ -37,8 +37,18 @@ const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: Dashboa
     console.log('DashboardSection - documentIds memo recalculated:', uploadedFiles.map(item => item.documentId));
     return uploadedFiles.map(item => item.documentId);
   }, [uploadedFiles]);
-  
 
+  // Show loading state while documents are being fetched
+  if (isLoadingDocuments) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-500" />
+          <p className="text-gray-600">Loading your documents...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
