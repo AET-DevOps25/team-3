@@ -32,6 +32,7 @@ services:
       - SPRING_DATASOURCE_USERNAME=studymate_user
       - SPRING_DATASOURCE_PASSWORD=studymate_password
       - SPRING_PROFILES_ACTIVE=dev
+      - GENAI_SERVICE_URL=http://genai:8081
     depends_on:
       - postgres
       - weaviate

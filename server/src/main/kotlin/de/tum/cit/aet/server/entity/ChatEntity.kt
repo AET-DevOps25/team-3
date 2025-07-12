@@ -22,7 +22,12 @@ data class ChatSessionEntity(
     val documentIds: List<String> = emptyList(),
     
     @OneToMany(mappedBy = "chatSession", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
-    val messages: MutableList<ChatMessageEntity> = mutableListOf()
+    val messages: MutableList<ChatMessageEntity> = mutableListOf(),
+    
+    // User relationship
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    val user: UserEntity
 )
 
 @Entity

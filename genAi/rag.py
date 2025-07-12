@@ -3,7 +3,6 @@ from weaviate.classes.query import Filter
 from langchain_community.document_loaders import PyMuPDFLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_weaviate.vectorstores import WeaviateVectorStore
-from langchain_cohere import CohereEmbeddings
 from langchain_core.documents import Document
 from dotenv import load_dotenv
 import os
@@ -14,7 +13,6 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # Setup shared embeddings model
 load_dotenv()
 embeddings_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-# embeddings_model_cohere = CohereEmbeddings(model="embed-english-light-v3.0", cohere_api_key=os.getenv("COHERE_API_KEY"))
 
 # Disable Huggingface's tokenizer parallelism (avoid deadlocks caused by process forking in langchain)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
