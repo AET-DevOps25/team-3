@@ -8,6 +8,8 @@ import UploadSection from '@/components/UploadSection';
 import DashboardSection from '@/components/DashboardSection';
 import HeroSection from '@/components/HeroSection';
 import FeaturesSection from '@/components/FeaturesSection';
+import Navigation from '@/components/Navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface UploadedFileWithId {
   file: File;
@@ -15,7 +17,8 @@ interface UploadedFileWithId {
 }
 
 const Index = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'dashboard'>('home');
+  const { isAuthenticated } = useAuth();
+  const [currentView, setCurrentView] = useState<'home' | 'dashboard'>(isAuthenticated ? 'dashboard' : 'home');
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFileWithId[]>([]);
   const { toast } = useToast();
 
@@ -35,6 +38,10 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <Navigation 
+        onBackToHome={() => setCurrentView('home')} 
+        showBackButton={currentView === 'dashboard'}
+      />
       {currentView === 'home' ? (
         <div className="animate-fade-in">
           <HeroSection onGetStarted={() => setCurrentView('dashboard')} />

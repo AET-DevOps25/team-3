@@ -4,7 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode
 
 data class DocumentUploadResponse(
     val documentIds: List<String>,
-    val status: String
+    val status: String,
+    val message: String? = null
 )
 
 data class DocumentStatusResponse(

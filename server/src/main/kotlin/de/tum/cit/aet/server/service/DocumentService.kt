@@ -17,6 +17,7 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import com.fasterxml.jackson.databind.JsonNode
+import de.tum.cit.aet.server.entity.UserEntity
 
 // Event class for document upload completion
 data class DocumentUploadedEvent(
@@ -74,26 +75,15 @@ class DocumentService(
         }
     }
     
-    @Transactional
-    fun uploadFiles(files: Array<MultipartFile>): DocumentUploadResponse {
+    fun uploadDocuments(files: List<MultipartFile>, user: UserEntity): DocumentUploadResponse {
         val documentIds = mutableListOf<String>()
         val errors = mutableListOf<String>()
         
-        for (file in files) {
+        files.forEach { file ->
             try {
-                // Validate file
-                if (file.isEmpty) {
-                    errors.add("File ${file.originalFilename} is empty")
-                    continue
-                }
-                
-                // Generate unique ID
                 val documentId = UUID.randomUUID().toString()
-                
-                // Convert file to Base64
                 val base64Content = Base64.getEncoder().encodeToString(file.bytes)
                 
-                // Create and save document entity
                 val documentEntity = DocumentEntity(
                     id = documentId,
                     originalName = file.originalFilename ?: "unknown",
@@ -101,13 +91,15 @@ class DocumentService(
                     fileType = extractFileType(file.originalFilename ?: ""),
                     fileContent = base64Content,
                     uploadDate = LocalDateTime.now(),
-                    status = DocumentStatus.UPLOADED
+                    status = DocumentStatus.UPLOADED,
+                    user = user
                 )
                 
                 documentRepository.save(documentEntity)
                 documentIds.add(documentId)
                 
                 // Publish event for async processing AFTER transaction commits
+                logger.info("Publishing DocumentUploadedEvent for document: {} (ID: {})", file.originalFilename, documentId)
                 eventPublisher.publishEvent(
                     DocumentUploadedEvent(
                         documentId = documentId,
@@ -115,7 +107,7 @@ class DocumentService(
                         fileContent = file.bytes
                     )
                 )
-                
+                logger.info("Document uploaded: method uploadDocuments - Event published")
             } catch (e: Exception) {
                 errors.add("Error uploading file ${file.originalFilename}: ${e.message}")
             }
@@ -141,6 +133,7 @@ class DocumentService(
             // Verify document exists before processing
             if (documentRepository.existsById(event.documentId)) {
                 processDocumentAsync(event.documentId, event.fileName, event.fileContent)
+                logger.info("handleDocumentUploaded - TransactionalEventListener triggered")
             } else {
                 logger.error("Document {} not found after transaction commit!", event.documentId)
             }
@@ -148,10 +141,27 @@ class DocumentService(
             logger.error("Error starting async processing for document {}: {}", event.fileName, e.message, e)
         }
     }
+
+    // Fallback event listener for debugging
+    @EventListener
+    fun handleDocumentUploadedFallback(event: DocumentUploadedEvent) {
+        logger.info("Fallback event listener triggered for document: {} (ID: {})", event.fileName, event.documentId)
+        try {
+            // Verify document exists before processing
+            if (documentRepository.existsById(event.documentId)) {
+                processDocumentAsync(event.documentId, event.fileName, event.fileContent)
+                logger.info("handleDocumentUploaded - Fallback EventListener triggered")
+            } else {
+                logger.error("Document {} not found in fallback listener!", event.documentId)
+            }
+        } catch (e: Exception) {
+            logger.error("Error in fallback async processing for document {}: {}", event.fileName, e.message, e)
+        }
+    }
     
-    fun getDocumentStatus(documentId: String): DocumentStatusResponse {
-        val documentEntity = documentRepository.findById(documentId)
-            .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+    fun getDocumentStatus(documentId: String, user: UserEntity): DocumentStatusResponse {
+        val documentEntity = documentRepository.findByIdAndUser(documentId, user)
+            ?: throw RuntimeException("Document not found with ID: $documentId")
         
         return DocumentStatusResponse(
             documentId = documentEntity.id,
@@ -162,20 +172,23 @@ class DocumentService(
         )
     }
     
-    fun getDocumentEntity(documentId: String): DocumentEntity? {
-        return documentRepository.findById(documentId).orElse(null)
+    @Transactional(readOnly = true)
+    fun getDocumentEntity(documentId: String, user: UserEntity): DocumentEntity? {
+        return documentRepository.findByIdAndUser(documentId, user)
     }
     
-    fun getFileContent(documentId: String): ByteArray {
-        val documentEntity = documentRepository.findById(documentId)
-            .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+    @Transactional(readOnly = true)
+    fun getFileContent(documentId: String, user: UserEntity): ByteArray {
+        val documentEntity = documentRepository.findByIdAndUser(documentId, user)
+            ?: throw RuntimeException("Document not found with ID: $documentId")
         
         return Base64.getDecoder().decode(documentEntity.fileContent)
     }
     
-    fun getDocumentContent(documentId: String): DocumentContentResponse {
-        val documentEntity = documentRepository.findById(documentId)
-            .orElseThrow { RuntimeException("Document not found with ID: $documentId") }
+    @Transactional(readOnly = true)
+    fun getDocumentContent(documentId: String, user: UserEntity): DocumentContentResponse {
+        val documentEntity = documentRepository.findByIdAndUser(documentId, user)
+            ?: throw RuntimeException("Document not found with ID: $documentId")
         
         return DocumentContentResponse(
             id = documentEntity.id,
@@ -193,8 +206,9 @@ class DocumentService(
         )
     }
     
-    fun listDocuments(): DocumentListResponse {
-        val documents = documentRepository.findAll().map { entity ->
+    @Transactional(readOnly = true)
+    fun listDocuments(user: UserEntity): DocumentListResponse {
+        val documents = documentRepository.findByUser(user).map { entity ->
             DocumentInfo(
                 id = entity.id,
                 name = entity.originalName,
