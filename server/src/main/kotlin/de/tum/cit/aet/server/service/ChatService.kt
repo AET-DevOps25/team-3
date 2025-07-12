@@ -5,6 +5,7 @@ import de.tum.cit.aet.server.entity.*
 import de.tum.cit.aet.server.repository.ChatSessionRepository
 import de.tum.cit.aet.server.repository.ChatMessageRepository
 import de.tum.cit.aet.server.repository.DocumentRepository
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 import java.util.*
@@ -16,6 +17,8 @@ class ChatService(
     private val documentRepository: DocumentRepository,
     private val genAiService: GenAiService
 ) {
+    
+    private val logger = LoggerFactory.getLogger(ChatService::class.java)
 
     fun createChatSession(request: ChatSessionRequest): ChatSessionResponse {
         val sessionId = UUID.randomUUID().toString()
@@ -169,7 +172,7 @@ class ChatService(
         
         // Fallback to default response if GenAI service fails
         val content = aiContent ?: run {
-            println("GenAI service failed, using fallback response")
+            logger.warn("GenAI service failed, using fallback response")
             "I'm having trouble accessing the AI service right now. However, I can still help you with your studies! " +
             "Based on your uploaded documents (${documentNames.joinToString(", ")}), what specific topic would you like to discuss?"
         }
@@ -185,12 +188,6 @@ class ChatService(
                 )
             }
         )
-    }
-    
-    // TODO: Replace with actual GenAI service integration
-    fun processWithGenAI(message: String, documentIds: List<String>): String {
-        // This will be replaced with actual GenAI service call
-        return "GenAI response for: $message (using documents: ${documentIds.joinToString(", ")})"
     }
 }
 

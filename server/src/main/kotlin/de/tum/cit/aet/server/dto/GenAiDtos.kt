@@ -89,5 +89,6 @@ data class QuizApiResponse(
     val questions: List<QuestionModel>,
     val documentName: String? = null,
     val documentId: String? = null,
+    val status: String = "NOT_STARTED",
     val error: String? = null
 ) 

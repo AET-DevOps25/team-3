@@ -16,6 +16,7 @@ interface DocumentSummary {
   name: string;
   summary: string | null;
   status: string;
+  summaryStatus: string;
   uploadDate: string;
   readTime?: string;
   keyPoints?: string[];
@@ -28,6 +29,51 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
+
+  // Helper function for status badge styling
+  const getStatusBadgeStyle = (status: string) => {
+    switch (status) {
+      case 'READY':
+        return 'bg-green-100 text-green-600';
+      case 'PROCESSING':
+        return 'bg-yellow-100 text-yellow-600';
+      case 'ERROR':
+        return 'bg-red-100 text-red-600';
+      default:
+        return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  // Helper function for card styling
+  const getCardStyle = (status: string) => {
+    if (status === 'ERROR') return 'border-red-200 bg-red-50';
+    if (status === 'PROCESSING') return 'border-yellow-200 bg-yellow-50';
+    return 'border-gray-200 bg-gray-50';
+  };
+
+  // Helper function for status messages
+  const getStatusMessage = (status: string) => {
+    switch (status) {
+      case 'PROCESSING':
+        return 'AI is analyzing this document...';
+      case 'ERROR':
+        return 'Processing failed. Please try uploading again.';
+      default:
+        return 'Document uploaded but summary processing hasn\'t started yet.';
+    }
+  };
+
+  // Consolidated document categorization
+  const categorizedSummaries = summaries.reduce((acc, summary) => {
+    if (summary.summaryStatus === 'READY') {
+      acc.ready.push(summary);
+    } else if (summary.summaryStatus === 'PROCESSING') {
+      acc.processing.push(summary);
+    } else {
+      acc.pending.push(summary);
+    }
+    return acc;
+  }, { ready: [] as DocumentSummary[], processing: [] as DocumentSummary[], pending: [] as DocumentSummary[] });
 
   // Fetch document summaries
   const fetchSummaries = async () => {
@@ -49,6 +95,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
             name: document?.name || 'Unknown Document',
             summary: content.summary,
             status: document?.status || 'UNKNOWN',
+            summaryStatus: content.summaryStatus || 'UNKNOWN',
             uploadDate: document?.uploadDate || '',
             readTime: content.summary ? `${Math.ceil(content.summary.split(' ').length / 200)} min read` : undefined,
             keyPoints: content.summary ? extractKeyPoints(content.summary) : undefined
@@ -60,6 +107,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
             name: 'Unknown Document',
             summary: null,
             status: 'ERROR',
+            summaryStatus: 'ERROR',
             uploadDate: '',
             error: error instanceof Error ? error.message : 'Failed to fetch summary'
           };
@@ -103,7 +151,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
 
   // Export all summaries as PDFs
   const handleExportAllPDFs = () => {
-    if (documentsWithSummaries.length === 0) {
+    if (categorizedSummaries.ready.length === 0) {
       toast({
         title: 'No summaries to export',
         description: 'Please wait for summaries to be generated.',
@@ -112,7 +160,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       return;
     }
     
-    documentsWithSummaries.forEach((summary, index) => {
+    categorizedSummaries.ready.forEach((summary, index) => {
       // Add a small delay between exports to avoid browser blocking
       setTimeout(() => {
         handleExportPDF(summary);
@@ -121,7 +169,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     
     toast({
       title: 'Exporting all summaries',
-      description: `${documentsWithSummaries.length} PDF(s) will be downloaded.`,
+      description: `${categorizedSummaries.ready.length} PDF(s) will be downloaded.`,
     });
   };
 
@@ -213,6 +261,19 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     fetchSummaries();
   }, [documentIds]);
 
+  // Poll for updates when there are documents being processed
+  useEffect(() => {
+    const documentsBeingProcessed = summaries.filter(s => s.summaryStatus === 'PROCESSING');
+    
+    if (documentsBeingProcessed.length > 0) {
+      const interval = setInterval(() => {
+        fetchSummaries();
+      }, 30000); // Poll every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [summaries, documentIds]);
+
   if (uploadedFiles.length === 0) {
     return (
       <Card className="text-center py-12">
@@ -238,10 +299,8 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     );
   }
 
-  const documentsWithSummaries = summaries.filter(s => s.summary);
-  const documentsWithoutSummaries = summaries.filter(s => !s.summary);
+  const { ready, processing, pending } = categorizedSummaries;
   
-
 
   return (
     <div className="space-y-6">
@@ -263,7 +322,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
           <Button 
             className="bg-purple-600 hover:bg-purple-700"
             onClick={() => handleExportAllPDFs()}
-            disabled={documentsWithSummaries.length === 0}
+            disabled={ready.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
             Export All
@@ -272,9 +331,9 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       </div>
 
       {/* Documents with summaries */}
-      {documentsWithSummaries.length > 0 && (
+      {ready.length > 0 && (
         <div className="grid gap-6">
-          {documentsWithSummaries.map((item) => (
+          {ready.map((item) => (
             <Card key={item.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -291,12 +350,8 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                           {item.readTime}
                         </span>
                       )}
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        item.status === 'READY' ? 'bg-green-100 text-green-600' :
-                        item.status === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {item.status}
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(item.summaryStatus)}`}>
+                        {item.summaryStatus}
                       </span>
                     </CardDescription>
                   </div>
@@ -311,7 +366,9 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
                   <div className="prose prose-sm max-w-none">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{item.summary}</p>
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                      {item.summary || 'Summary is ready but content is not available. Please refresh or try again.'}
+                    </p>
                   </div>
                 </div>
 
@@ -364,13 +421,13 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
         </div>
       )}
 
-      {/* Documents without summaries */}
-      {documentsWithoutSummaries.length > 0 && (
+      {/* Documents being processed */}
+      {processing.length > 0 && (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold text-gray-900">Documents Being Processed</h3>
           <div className="grid gap-4">
-            {documentsWithoutSummaries.map((item) => (
-              <Card key={item.id} className="border-yellow-200 bg-yellow-50">
+            {processing.map((item) => (
+              <Card key={item.id} className={getCardStyle(item.summaryStatus)}>
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
@@ -378,18 +435,12 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                       <div>
                         <h4 className="font-medium text-gray-900">{item.name}</h4>
                         <p className="text-sm text-gray-600">
-                          {item.status === 'PROCESSING' ? 'AI is analyzing this document...' : 
-                           item.status === 'ERROR' ? 'Processing failed. Please try uploading again.' :
-                           'Waiting to be processed...'}
+                          {getStatusMessage(item.summaryStatus)}
                         </p>
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      item.status === 'PROCESSING' ? 'bg-yellow-100 text-yellow-600' :
-                      item.status === 'ERROR' ? 'bg-red-100 text-red-600' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {item.status}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(item.summaryStatus)}`}>
+                      {item.summaryStatus}
                     </span>
                   </div>
                 </CardContent>
@@ -399,13 +450,44 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
         </div>
       )}
 
-      {/* No summaries available */}
+      {/* Documents not yet processed */}
+      {pending.length > 0 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {pending.some(d => d.summaryStatus === 'ERROR') ? 'Documents with Issues' : 'Documents Pending Processing'}
+          </h3>
+          <div className="grid gap-4">
+            {pending.map((item) => (
+              <Card key={item.id} className={getCardStyle(item.summaryStatus)}>
+                <CardContent className="pt-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <FileText className={`h-5 w-5 ${getStatusBadgeStyle(item.summaryStatus)}`} />
+                      <div>
+                        <h4 className="font-medium text-gray-900">{item.name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {getStatusMessage(item.summaryStatus)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeStyle(item.summaryStatus)}`}>
+                      {item.summaryStatus === 'ERROR' ? 'ERROR' : 'PENDING'}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* No documents at all */}
       {summaries.length === 0 && !loading && (
         <Card className="text-center py-12">
           <CardContent>
             <FileText className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No summaries available</h3>
-            <p className="text-gray-600 mb-6">Your documents are being processed. Check back soon!</p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No documents found</h3>
+            <p className="text-gray-600 mb-6">Upload your course materials to generate AI summaries!</p>
             <Button variant="outline" onClick={handleRefresh}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh

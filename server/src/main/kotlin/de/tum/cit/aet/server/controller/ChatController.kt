@@ -5,6 +5,7 @@ import de.tum.cit.aet.server.dto.ChatMessageResponse
 import de.tum.cit.aet.server.dto.ChatSessionRequest
 import de.tum.cit.aet.server.dto.ChatSessionResponse
 import de.tum.cit.aet.server.service.ChatService
+import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -14,9 +15,12 @@ import org.springframework.web.bind.annotation.*
 class ChatController(
     private val chatService: ChatService
 ) {
+    
+    private val logger = LoggerFactory.getLogger(ChatController::class.java)
 
     @PostMapping("/sessions")
     fun createChatSession(@RequestBody request: ChatSessionRequest): ResponseEntity<ChatSessionResponse> {
+        logger.info("POST /api/chat/sessions/")
         val response = chatService.createChatSession(request)
         return ResponseEntity.ok(response)
     }
@@ -24,6 +28,7 @@ class ChatController(
     @GetMapping("/sessions/{sessionId}")
     fun getChatSession(@PathVariable sessionId: String): ResponseEntity<ChatSessionResponse> {
         return try {
+            logger.info("GET /api/chat/sessions/{}", sessionId)
             val response = chatService.getChatSession(sessionId)
             ResponseEntity.ok(response)
         } catch (e: IllegalArgumentException) {
@@ -37,6 +42,7 @@ class ChatController(
         @RequestBody request: ChatMessageRequest
     ): ResponseEntity<ChatMessageResponse> {
         return try {
+            logger.info("POST /api/chat/sessions/{}/messages", sessionId)
             val response = chatService.sendMessage(sessionId, request)
             ResponseEntity.ok(response)
         } catch (e: IllegalArgumentException) {

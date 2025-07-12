@@ -112,7 +112,7 @@ const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome }: Dashboa
           </TabsContent>
 
           <TabsContent value="flashcards" className="animate-fade-in">
-            <FlashcardsTab uploadedFiles={files} />
+            <FlashcardsTab uploadedFiles={files} documentIds={documentIds} />
           </TabsContent>
 
           <TabsContent value="chat" className="animate-fade-in">

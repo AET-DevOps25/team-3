@@ -1,6 +1,9 @@
 // API service for communicating with the Spring Boot backend
 const API_BASE_URL = 'http://localhost:8082';
 
+// Common status type used throughout the application
+export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+
 export interface DocumentUploadResponse {
   documentIds: string[];
   status: string;
@@ -12,7 +15,7 @@ export interface DocumentInfo {
   size: number;
   uploadDate: string;
   type: string;
-  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+  status: DocumentStatus;
 }
 
 export interface DocumentListResponse {
@@ -21,15 +24,44 @@ export interface DocumentListResponse {
 
 export interface DocumentStatusResponse {
   documentId: string;
-  status: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+  status: DocumentStatus;
   documentName: string;
   uploadDate: string;
 }
 
 export interface DocumentContentResponse {
-  documentId: string;
+  id: string;
+  originalName: string;
   summary: string | null;
   processedContent: any;
+  quizData: any;
+  flashcardData: any;
+  status: DocumentStatus;
+  summaryStatus: DocumentStatus;
+  quizStatus: DocumentStatus;
+  flashcardStatus: DocumentStatus;
+  uploadDate: string;
+  updatedAt: string;
+}
+
+export interface FlashcardModel {
+  question: string;
+  answer: string;
+  difficulty: string;
+}
+
+export interface FlashcardResponse {
+  response: {
+    flashcards: FlashcardModel[];
+  };
+}
+
+export interface FlashcardApiResponse {
+  flashcards: FlashcardModel[];
+  documentName: string;
+  documentId: string;
+  status: DocumentStatus;
+  error?: string;
 }
 
 // Chat interfaces
@@ -70,6 +102,14 @@ export interface ChatMessageResponse {
   timestamp: string;
   sources?: string[];
   documentReferences?: DocumentReference[];
+}
+
+export interface QuizApiResponse {
+  questions: any[];
+  documentName: string;
+  documentId: string;
+  status: DocumentStatus;
+  error?: string;
 }
 
 class ApiService {
@@ -220,15 +260,27 @@ class ApiService {
     return response.json();
   }
 
-  async getQuizForDocument(documentId: string): Promise<any> {
-    console.log('API: Fetching quiz for document:', documentId);
+  async getQuizForDocument(documentId: string): Promise<QuizApiResponse> {
     const response = await fetch(`${this.baseUrl}/api/quiz/documents/${documentId}`);
-    console.log('API: Quiz response status:', response.status);
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error || `Failed to get quiz: ${response.status} ${response.statusText}`);
     }
+    
     const data = await response.json();
+    
+    // Handle error response from backend 
+    if (data.error) {
+      return {
+        questions: data.questions || [],
+        documentName: data.documentName || 'Unknown Document',
+        documentId: documentId,
+        status: data.status || 'ERROR',
+        error: data.error
+      };
+    }
+    
     // Map correct_answer to correctAnswer for each question
     if (data && data.questions && Array.isArray(data.questions)) {
       data.questions = data.questions.map(q => ({
@@ -237,6 +289,35 @@ class ApiService {
       }));
     }
     return data;
+  }
+
+  async getFlashcardsForDocument(documentId: string): Promise<FlashcardApiResponse> {
+    const response = await fetch(`${this.baseUrl}/api/flashcards/documents/${documentId}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `Failed to get flashcards: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Handle error response from backend
+    if (data.error) {
+      return {
+        flashcards: [],
+        documentName: data.documentName || 'Unknown Document',
+        documentId: documentId,
+        status: 'ERROR',
+        error: data.error
+      };
+    }
+    
+    return {
+      flashcards: data.flashcards || [],
+      documentName: data.documentName || 'Unknown Document',
+      documentId: documentId,
+      status: data.status || 'ERROR'
+    };
   }
 }
 

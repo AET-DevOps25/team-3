@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Brain, Clock, CheckCircle, XCircle, Trophy, RotateCcw, Loader2 } from 'lucide-react';
-import { apiService } from '../lib/api';
+import { Brain, CheckCircle, XCircle, Trophy, RotateCcw, Loader2, FileText } from 'lucide-react';
+import { apiService, DocumentStatus } from '../lib/api';
 
 interface QuizTabProps {
   uploadedFiles: File[];
@@ -26,63 +25,182 @@ interface QuizData {
   questions: QuizQuestion[];
   documentName: string;
   documentId: string;
+  status?: DocumentStatus | 'PENDING';
   error?: string;
 }
 
 const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, setAnswers }: QuizTabProps) => {
-  const [loading, setLoading] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<number | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [showResults, setShowResults] = useState(false);
   const fetchedDocumentIds = useRef<Set<string>>(new Set());
 
-  // Helper to get/set answers for the current quiz
   const getCurrentAnswers = (quizId: string) => answers[quizId] || {};
   const setCurrentAnswers = (quizId: string, newAnswers: { [questionIndex: number]: string | number }) => {
     setAnswers(prev => ({ ...prev, [quizId]: newAnswers }));
   };
 
   useEffect(() => {
-    // Only fetch for truly new document IDs that are not already in quizzes state
-    const uniqueIds = Array.from(new Set(documentIds));
-    const alreadyFetchedIds = new Set([
-      ...fetchedDocumentIds.current,
-      ...quizzes.map(q => q.documentId)
-    ]);
-    const newDocumentIds = uniqueIds.filter(id => !alreadyFetchedIds.has(id));
-    console.log('[QuizTab] Effect: uniqueIds:', uniqueIds, 'alreadyFetched:', Array.from(alreadyFetchedIds), 'new:', newDocumentIds);
-    if (newDocumentIds.length === 0) {
-      return;
-    }
-    setLoading(true);
+    const newDocumentIds = documentIds.filter(id => !fetchedDocumentIds.current.has(id));
+    if (newDocumentIds.length === 0) return;
+    
+    // First, add pending entries for new documents
+    const pendingEntries = newDocumentIds.map(documentId => ({
+      questions: [],
+      documentName: 'Loading...',
+      documentId,
+      status: 'PENDING' as const,
+      error: undefined
+    }));
+    
+    setQuizzes(prevQuizzes => [...prevQuizzes, ...pendingEntries]);
+    
     const fetchQuizzes = async () => {
-      try {
-        const quizPromises = newDocumentIds.map(async (documentId) => {
-          try {
-            const res = await apiService.getQuizForDocument(documentId);
-            return res;
-          } catch (error) {
+      const quizPromises = newDocumentIds.map(async (documentId) => {
+        try {
+          // Check if quiz data is already available from automatic processing
+          const documentContent = await apiService.getDocumentContent(documentId);
+          
+          // If quiz is ready and has data, use it directly
+          if (documentContent.quizStatus === 'READY' && documentContent.quizData) {
+            try {
+              const quizDataMap = documentContent.quizData.response || documentContent.quizData;
+              const questionsList = quizDataMap.questions || [];
+              
+              if (questionsList.length > 0) {
+                const questions = questionsList.map(q => ({
+                  type: q.type || "",
+                  question: q.question || "",
+                  correctAnswer: q.correct_answer || q.correctAnswer || "",
+                  points: q.points || 0,
+                  options: q.options || null
+                }));
+                
+                return {
+                  questions,
+                  documentName: documentContent.originalName || 'Unknown Document',
+                  documentId,
+                  status: 'READY',
+                  error: undefined
+                };
+              }
+            } catch (parseError) {
+              console.warn('Failed to parse existing quiz data:', parseError);
+            }
+          }
+          
+          // Check if we should wait for automatic processing or make individual API call
+          const shouldWaitForAutoProcessing = 
+            documentContent.status === 'PROCESSING' || 
+            documentContent.summaryStatus === 'PROCESSING' ||
+            documentContent.quizStatus === 'PROCESSING' ||
+            documentContent.flashcardStatus === 'PROCESSING' ||
+            documentContent.summaryStatus === 'UPLOADED' || 
+            documentContent.quizStatus === 'UPLOADED';
+
+          if (shouldWaitForAutoProcessing) {
             return {
               questions: [],
-              documentName: 'Unknown Document',
+              documentName: documentContent.originalName || 'Unknown Document',
               documentId,
-              error: error instanceof Error ? error.message : 'Failed to fetch quiz',
+              status: 'PROCESSING',
+              error: 'Quiz is being generated automatically...'
             };
           }
-        });
-        const results = await Promise.all(quizPromises);
-        newDocumentIds.forEach(id => fetchedDocumentIds.current.add(id));
-        setQuizzes(prevQuizzes => {
-          // Merge new results with existing quizzes, avoid duplicates
-          const existingQuizzes = prevQuizzes.filter(q => !newDocumentIds.includes(q.documentId));
-          return [...existingQuizzes, ...results];
-        });
-      } finally {
-        setLoading(false);
+          
+          // Only make individual API call if automatic processing failed
+          if (documentContent.quizStatus === 'ERROR') {
+            const res = await apiService.getQuizForDocument(documentId);
+            
+            if (res.status === 'PROCESSING') {
+              pollQuizStatus(documentId);
+            }
+            
+            return res;
+          }
+          
+          // Default: wait for automatic processing
+          return {
+            questions: [],
+            documentName: documentContent.originalName || 'Unknown Document',
+            documentId,
+            status: 'PROCESSING',
+            error: 'Waiting for automatic quiz generation...'
+          };
+          
+        } catch (error) {
+          return {
+            questions: [],
+            documentName: 'Unknown Document',
+            documentId,
+            status: 'ERROR',
+            error: error instanceof Error ? error.message : 'Failed to fetch quiz',
+          };
+        }
+      });
+      
+      const results = await Promise.all(quizPromises);
+      newDocumentIds.forEach(id => fetchedDocumentIds.current.add(id));
+      
+      setQuizzes(prevQuizzes => {
+        const existingQuizzes = prevQuizzes.filter(q => !newDocumentIds.includes(q.documentId));
+        const mappedResults = results.map(result => ({
+          questions: result.questions || [],
+          documentName: result.documentName || 'Unknown Document',
+          documentId: result.documentId,
+          status: result.status as 'PROCESSING' | 'READY' | 'ERROR' | 'PENDING',
+          error: result.error
+        }));
+        return [...existingQuizzes, ...mappedResults];
+      });
+    };
+    
+    fetchQuizzes();
+  }, [documentIds.join(",")]);  // Removed 'quizzes' and 'setQuizzes' from dependencies
+
+  const pollQuizStatus = async (documentId: string) => {
+    const maxAttempts = 30;
+    let attempts = 0;
+    
+    const poll = async () => {
+      try {
+        const res = await apiService.getQuizForDocument(documentId);
+        
+        if (res.status === 'READY' || res.status === 'ERROR') {
+          setQuizzes(prevQuizzes => {
+            const updatedQuizzes = prevQuizzes.map(q => 
+              q.documentId === documentId ? res : q
+            );
+            return updatedQuizzes;
+          });
+          return;
+        }
+        
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 30000);
+        } else {
+          setQuizzes(prevQuizzes => {
+            const updatedQuizzes = prevQuizzes.map(q => 
+              q.documentId === documentId ? {
+                ...q,
+                status: 'ERROR' as const,
+                error: 'Quiz generation timed out. Please try again.'
+              } : q
+            );
+            return updatedQuizzes;
+          });
+        }
+      } catch (error) {
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 30000);
+        }
       }
     };
-    fetchQuizzes();
-  }, [documentIds.join(","), quizzes, setQuizzes]); // quizzes as dependency to avoid re-fetching
+    
+    setTimeout(poll, 5000);
+  };
 
   const handleAnswerSelect = (questionIndex: number, answerIndex: number) => {
     if (selectedQuiz === null) return;
@@ -108,6 +226,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
     const quizId = quiz.documentId;
     const userAnswers = getCurrentAnswers(quizId);
     let correct = 0;
+    
     quiz.questions.forEach((question, index) => {
       if (question.options) {
         if (
@@ -120,323 +239,365 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
         const userAnswerStr = typeof userAnswers[index] === 'string' ? userAnswers[index] : '';
         const userAnswerTrimmed = userAnswerStr ? userAnswerStr.trim() : '';
         const correctAnswerTrimmed = question.correctAnswer ? question.correctAnswer.trim() : '';
-        if (
-          userAnswerTrimmed.toLowerCase() === correctAnswerTrimmed.toLowerCase()
-        ) {
+        if (userAnswerTrimmed.toLowerCase() === correctAnswerTrimmed.toLowerCase()) {
           correct++;
         }
       }
     });
+    
     return quiz.questions.length > 0 ? Math.round((correct / quiz.questions.length) * 100) : 0;
   };
 
-  console.log('QuizTab render - uploadedFiles:', uploadedFiles.length, 'documentIds:', documentIds.length, 'quizzes:', quizzes.length, 'loading:', loading);
-  
-  if (uploadedFiles.length === 0 || documentIds.length === 0) {
-    console.log('QuizTab: No files or document IDs, showing empty state');
-    return (
-      <Card className="text-center py-12">
-        <CardContent>
-          <Brain className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No quizzes available</h3>
-          <p className="text-gray-600 mb-6">Upload your course materials to generate personalized quizzes</p>
-          <Button variant="outline">Go to Upload Tab</Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 text-blue-500 animate-spin mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading quizzes...</h3>
-          <p className="text-gray-600">AI is generating quizzes for your documents</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (selectedQuiz !== null && !showResults) {
-    const quiz = quizzes[selectedQuiz];
-    if (!quiz) return null;
-    const question = quiz.questions[currentQuestion];
-    return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Quiz Header */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">{quiz.documentName}</CardTitle>
-                <CardDescription>Question {currentQuestion + 1} of {quiz.questions.length}</CardDescription>
-              </div>
-              <Button variant="outline" onClick={() => setSelectedQuiz(null)}>
-                Exit Quiz
-              </Button>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${((currentQuestion + 1) / quiz.questions.length) * 100}%` }}
-              ></div>
-            </div>
-          </CardHeader>
-        </Card>
-
-        {/* Question Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg leading-relaxed">
-              {question.question}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {question.options ? (
-              question.options.map((option, index) => (
-                <button
-                  key={index}
-                  onClick={() => handleAnswerSelect(currentQuestion, index)}
-                  className={`w-full p-4 text-left rounded-lg border-2 transition-all duration-200 ${
-                    getCurrentAnswers(quiz.documentId)[currentQuestion] === index
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                      getCurrentAnswers(quiz.documentId)[currentQuestion] === index
-                        ? 'border-blue-500 bg-blue-500'
-                        : 'border-gray-300'
-                    }`}>
-                      {getCurrentAnswers(quiz.documentId)[currentQuestion] === index && (
-                        <div className="w-3 h-3 bg-white rounded-full"></div>
-                      )}
-                    </div>
-                    <span className="text-gray-900">{option}</span>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <input
-                type="text"
-                className="w-full p-4 border rounded-lg"
-                placeholder="Type your answer here"
-                value={typeof getCurrentAnswers(quiz.documentId)[currentQuestion] === 'string' ? getCurrentAnswers(quiz.documentId)[currentQuestion] : ''}
-                onChange={e => handleShortAnswerChange(currentQuestion, e.target.value)}
-              />
-            )}
-
-            <div className="flex justify-between pt-6">
-              <Button 
-                variant="outline" 
-                onClick={() => setCurrentQuestion(prev => Math.max(0, prev - 1))}
-                disabled={currentQuestion === 0}
-              >
-                Previous
-              </Button>
-              {currentQuestion === quiz.questions.length - 1 ? (
-                <Button 
-                  onClick={handleSubmitQuiz}
-                  disabled={getCurrentAnswers(quiz.documentId)[currentQuestion] === undefined || (question.options === undefined && !getCurrentAnswers(quiz.documentId)[currentQuestion])}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  Submit Quiz
-                </Button>
-              ) : (
-                <Button 
-                  onClick={() => setCurrentQuestion(prev => Math.min(quiz.questions.length - 1, prev + 1))}
-                  disabled={getCurrentAnswers(quiz.documentId)[currentQuestion] === undefined || (question.options === undefined && !getCurrentAnswers(quiz.documentId)[currentQuestion])}
-                >
-                  Next
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  if (showResults && selectedQuiz !== null) {
-    const quiz = quizzes[selectedQuiz];
-    console.log('QuizTab results section:', { showResults, selectedQuiz, quiz });
-    if (!quiz) return (
-      <div className="max-w-4xl mx-auto text-center py-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Quiz not found</h2>
-        <p className="text-gray-600 mb-6">Sorry, we couldn't find your quiz results. Please try again.</p>
-        <Button onClick={() => setSelectedQuiz(null)}>Back to Quizzes</Button>
-      </div>
-    );
-    const score = calculateScore(quiz);
-    return (
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Results Header */}
-        <Card className="text-center">
-          <CardContent className="pt-8 pb-8">
-            <Trophy className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-            <h2 className="text-3xl font-bold text-gray-900 mb-2">Quiz Complete!</h2>
-            <p className="text-xl text-gray-600 mb-4">Your Score: {score}%</p>
-            <div className="flex justify-center space-x-4">
-              <Button onClick={() => {
-                setShowResults(false);
-                setCurrentQuestion(0);
-                setCurrentAnswers(quiz.documentId, {});
-              }}>
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Retake Quiz
-              </Button>
-              <Button variant="outline" onClick={() => setSelectedQuiz(null)}>
-                Back to Quizzes
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Answer Review */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Answer Review</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {quiz.questions.map((question, index) => {
-              const userAnswer = getCurrentAnswers(quiz.documentId)[index];
-              let isCorrect = false;
-              if (question.options) {
-                // Normalize both selected option and correct answer for comparison
-                const userOption = userAnswer !== undefined ? question.options[userAnswer] : '';
-                const userOptionNorm = userOption ? userOption.trim().toLowerCase() : '';
-                const correctOptionNorm = question.correctAnswer ? question.correctAnswer.trim().toLowerCase() : '';
-                isCorrect = userOptionNorm === correctOptionNorm;
-                // Debug log for MCQ
-                console.log('[QuizTab][MCQ] Q:', question.question, 'userAnswer:', userAnswer, 'userOption:', userOption, 'userOptionNorm:', userOptionNorm, 'correctAnswer:', question.correctAnswer, 'correctOptionNorm:', correctOptionNorm, 'isCorrect:', isCorrect, 'options:', question.options);
-              } else {
-                const userAnswerStr = typeof userAnswer === 'string' ? userAnswer : '';
-                const userAnswerTrimmed = userAnswerStr ? userAnswerStr.trim().toLowerCase() : '';
-                const correctAnswerTrimmed = question.correctAnswer ? question.correctAnswer.trim().toLowerCase() : '';
-                isCorrect = !!correctAnswerTrimmed && userAnswerTrimmed === correctAnswerTrimmed;
-                // Debug log for short answer
-                console.log('[QuizTab][Short] Q:', question.question, 'userAnswer:', userAnswer, 'userAnswerTrimmed:', userAnswerTrimmed, 'correctAnswer:', question.correctAnswer, 'correctAnswerTrimmed:', correctAnswerTrimmed, 'isCorrect:', isCorrect);
-              }
-              return (
-                <div key={index} className="border-b border-gray-100 pb-6 last:border-b-0">
-                  <div className="flex items-start space-x-3 mb-3">
-                    {isCorrect ? (
-                      <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
-                    ) : (
-                      <XCircle className="h-6 w-6 text-red-500 mt-1" />
-                    )}
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 mb-2">{question.question}</h4>
-                      <div className="space-y-2">
-                        {question.options ? (
-                          question.options.map((option, optionIndex) => {
-                            let className = "p-2 rounded text-sm ";
-                            const isUserSelected = optionIndex === userAnswer;
-                            const isCorrectOption = option === question.correctAnswer;
-                            
-                            if (isCorrectOption) {
-                              // Always highlight correct answer in green
-                              className += "bg-green-100 text-green-800 border border-green-200";
-                            } else if (isUserSelected && !isCorrect) {
-                              // Highlight user's wrong selection in red
-                              className += "bg-red-100 text-red-800 border border-red-200";
-                            } else {
-                              // Default styling for unselected options
-                              className += "bg-gray-50 text-gray-700";
-                            }
-                            
-                            return (
-                              <div key={optionIndex} className={className}>
-                                {option}
-                                {isCorrectOption && <span className="ml-2 text-green-600 font-semibold">✓ Correct</span>}
-                                {isUserSelected && !isCorrectOption && <span className="ml-2 text-red-600 font-semibold">✗ Your choice</span>}
-                              </div>
-                            );
-                          })
-                        ) : (
-                          <div className="space-y-2">
-                            <div className={`p-2 rounded text-sm ${isCorrect ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
-                              <span className="font-semibold">Your answer:</span> {userAnswer ? userAnswer : <span className="italic text-gray-400">No answer</span>}
-                            </div>
-                            <div className="p-2 rounded text-sm bg-green-100 text-green-800 border border-green-200">
-                              <span className="font-semibold">Correct answer:</span> {question.correctAnswer}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  const readyQuizzes = quizzes.filter(q => q.status === 'READY' && q.questions && q.questions.length > 0);
+  const generatingQuizzes = quizzes.filter(q => q.status === 'PROCESSING');
+  const failedQuizzes = quizzes.filter(q => q.status === 'ERROR');
+  const pendingQuizzes = quizzes.filter(q => 
+    !q.status || q.status === 'PENDING' || 
+    (q.status !== 'READY' && q.status !== 'PROCESSING' && q.status !== 'ERROR')
+  );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">AI-Generated Quizzes</h2>
-          <p className="text-gray-600">Test your knowledge with personalized quizzes</p>
-        </div>
-      </div>
-
-      {/* Quiz Cards */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {quizzes.map((quiz, index) => (
-          <Card key={quiz.documentId} className="hover:shadow-lg transition-shadow cursor-pointer group">
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <CardTitle className="text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                    {quiz.documentName}
-                  </CardTitle>
-                  <CardDescription className="mt-2">
-                    {quiz.questions.length > 0 ? `${quiz.questions.length} questions` : quiz.error || 'No quiz available'}
-                  </CardDescription>
+    <>
+      {/* Quiz taking view */}
+      {selectedQuiz !== null && !showResults && (() => {
+        const quiz = quizzes[selectedQuiz];
+        if (!quiz) return null;
+        const question = quiz.questions[currentQuestion];
+        
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl">{quiz.documentName}</CardTitle>
+                    <CardDescription>Question {currentQuestion + 1} of {quiz.questions.length}</CardDescription>
+                  </div>
+                  <Button variant="outline" onClick={() => setSelectedQuiz(null)}>
+                    Exit Quiz
+                  </Button>
                 </div>
-                <Badge variant={quiz.questions.length > 7 ? 'destructive' : 'secondary'}>
-                  {quiz.questions.length > 7 ? 'Advanced' : 'Standard'}
-                </Badge>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${((currentQuestion + 1) / quiz.questions.length) * 100}%` }}
+                  ></div>
+                </div>
+              </CardHeader>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg leading-relaxed">
+                  {question.question}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {question.options ? (
+                  question.options.map((option, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleAnswerSelect(currentQuestion, index)}
+                      className={`w-full p-4 text-left rounded-lg border-2 transition-all duration-200 ${
+                        getCurrentAnswers(quiz.documentId)[currentQuestion] === index
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                          getCurrentAnswers(quiz.documentId)[currentQuestion] === index
+                            ? 'border-blue-500 bg-blue-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {getCurrentAnswers(quiz.documentId)[currentQuestion] === index && (
+                            <div className="w-3 h-3 bg-white rounded-full"></div>
+                          )}
+                        </div>
+                        <span className="text-gray-900">{option}</span>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <input
+                    type="text"
+                    className="w-full p-4 border rounded-lg"
+                    placeholder="Type your answer here"
+                    value={typeof getCurrentAnswers(quiz.documentId)[currentQuestion] === 'string' ? getCurrentAnswers(quiz.documentId)[currentQuestion] : ''}
+                    onChange={e => handleShortAnswerChange(currentQuestion, e.target.value)}
+                  />
+                )}
+
+                <div className="flex justify-between pt-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setCurrentQuestion(prev => Math.max(0, prev - 1))}
+                    disabled={currentQuestion === 0}
+                  >
+                    Previous
+                  </Button>
+                  {currentQuestion === quiz.questions.length - 1 ? (
+                    <Button 
+                      onClick={handleSubmitQuiz}
+                      disabled={getCurrentAnswers(quiz.documentId)[currentQuestion] === undefined || (question.options === undefined && !getCurrentAnswers(quiz.documentId)[currentQuestion])}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Submit Quiz
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={() => setCurrentQuestion(prev => Math.min(quiz.questions.length - 1, prev + 1))}
+                      disabled={getCurrentAnswers(quiz.documentId)[currentQuestion] === undefined || (question.options === undefined && !getCurrentAnswers(quiz.documentId)[currentQuestion])}
+                    >
+                      Next
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
+      {/* Results view */}
+      {showResults && selectedQuiz !== null && (() => {
+        const quiz = quizzes[selectedQuiz];
+        if (!quiz) return (
+          <div className="max-w-4xl mx-auto text-center py-12">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Quiz not found</h2>
+            <p className="text-gray-600 mb-6">Sorry, we couldn't find your quiz results. Please try again.</p>
+            <Button onClick={() => setSelectedQuiz(null)}>Back to Quizzes</Button>
+          </div>
+        );
+        
+        const score = calculateScore(quiz);
+        
+        return (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <Card className="text-center">
+              <CardContent className="pt-8 pb-8">
+                <Trophy className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
+                <h2 className="text-3xl font-bold text-gray-900 mb-2">Quiz Complete!</h2>
+                <p className="text-xl text-gray-600 mb-4">Your Score: {score}%</p>
+                <div className="flex justify-center space-x-4">
+                  <Button onClick={() => {
+                    setShowResults(false);
+                    setCurrentQuestion(0);
+                    setCurrentAnswers(quiz.documentId, {});
+                  }}>
+                    <RotateCcw className="h-4 w-4 mr-2" />
+                    Retake Quiz
+                  </Button>
+                  <Button variant="outline" onClick={() => setSelectedQuiz(null)}>
+                    Back to Quizzes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Answer Review</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {quiz.questions.map((question, index) => {
+                  const userAnswer = getCurrentAnswers(quiz.documentId)[index];
+                  let isCorrect = false;
+                  
+                  if (question.options) {
+                    const userOption = userAnswer !== undefined ? question.options[userAnswer] : '';
+                    const userOptionNorm = userOption ? userOption.trim().toLowerCase() : '';
+                    const correctOptionNorm = question.correctAnswer ? question.correctAnswer.trim().toLowerCase() : '';
+                    isCorrect = userOptionNorm === correctOptionNorm;
+                  } else {
+                    const userAnswerStr = typeof userAnswer === 'string' ? userAnswer : '';
+                    const userAnswerTrimmed = userAnswerStr ? userAnswerStr.trim().toLowerCase() : '';
+                    const correctAnswerTrimmed = question.correctAnswer ? question.correctAnswer.trim().toLowerCase() : '';
+                    isCorrect = !!correctAnswerTrimmed && userAnswerTrimmed === correctAnswerTrimmed;
+                  }
+                  
+                  return (
+                    <div key={index} className="border-b border-gray-100 pb-6 last:border-b-0">
+                      <div className="flex items-start space-x-3 mb-3">
+                        {isCorrect ? (
+                          <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
+                        ) : (
+                          <XCircle className="h-6 w-6 text-red-500 mt-1" />
+                        )}
+                        <div className="flex-1">
+                          <h4 className="font-medium text-gray-900 mb-2">{question.question}</h4>
+                          <div className="space-y-2">
+                            {question.options ? (
+                              question.options.map((option, optionIndex) => {
+                                let className = "p-2 rounded text-sm ";
+                                const isUserSelected = optionIndex === userAnswer;
+                                const isCorrectOption = option === question.correctAnswer;
+                                
+                                if (isCorrectOption) {
+                                  className += "bg-green-100 text-green-800 border border-green-200";
+                                } else if (isUserSelected && !isCorrect) {
+                                  className += "bg-red-100 text-red-800 border border-red-200";
+                                } else {
+                                  className += "bg-gray-50 text-gray-700";
+                                }
+                                
+                                return (
+                                  <div key={optionIndex} className={className}>
+                                    {option}
+                                    {isCorrectOption && <span className="ml-2 text-green-600 font-semibold">✓ Correct</span>}
+                                    {isUserSelected && !isCorrectOption && <span className="ml-2 text-red-600 font-semibold">✗ Your choice</span>}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="space-y-2">
+                                <div className={`p-2 rounded text-sm ${isCorrect ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
+                                  <span className="font-semibold">Your answer:</span> {userAnswer ? userAnswer : <span className="italic text-gray-400">No answer</span>}
+                                </div>
+                                <div className="p-2 rounded text-sm bg-green-100 text-green-800 border border-green-200">
+                                  <span className="font-semibold">Correct answer:</span> {question.correctAnswer}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
+
+      {/* Empty state */}
+      {uploadedFiles.length === 0 || documentIds.length === 0 ? (
+        <Card className="text-center py-12">
+          <CardContent>
+            <Brain className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No quizzes available</h3>
+            <p className="text-gray-600 mb-6">Upload your course materials to generate personalized quizzes</p>
+            <Button variant="outline">Go to Upload Tab</Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">AI-Generated Quizzes</h2>
+              <p className="text-gray-600">Test your knowledge with personalized quizzes</p>
+            </div>
+          </div>
+
+          {readyQuizzes.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Available Quizzes</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {readyQuizzes.map((quiz, index) => (
+                  <Card key={quiz.documentId} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedQuiz(index)}>
+                    <CardHeader>
+                      <CardTitle className="text-lg">{quiz.documentName}</CardTitle>
+                      <CardDescription>
+                        {quiz.questions.length} questions • Multiple choice & short answer
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Ready to start</span>
+                        <Button size="sm">Start Quiz</Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span className="flex items-center">
-                  <Brain className="h-4 w-4 mr-1" />
-                  {quiz.questions.length} questions
-                </span>
-                <span className="flex items-center">
-                  <Clock className="h-4 w-4 mr-1" />
-                  {Math.max(1, Math.ceil(quiz.questions.length * 1.5))} min
-                </span>
+            </div>
+          )}
+
+          {generatingQuizzes.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Quizzes Being Generated</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {generatingQuizzes.map((quiz) => (
+                  <Card key={quiz.documentId} className="border-yellow-200 bg-yellow-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Loader2 className="h-5 w-5 text-yellow-600 animate-spin" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
+                            <p className="text-sm text-gray-600">AI is generating your quiz...</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-              <div className="text-xs text-gray-500">
-                Source: {quiz.documentName}
+            </div>
+          )}
+
+          {failedQuizzes.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Failed Quizzes</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {failedQuizzes.map((quiz) => (
+                  <Card key={quiz.documentId} className="border-red-200 bg-red-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div>
+                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
+                            <p className="text-sm text-red-600">{quiz.error || 'Failed to generate quiz'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
-              <Button 
-                className="w-full"
-                onClick={() => {
-                  setSelectedQuiz(index);
-                  setCurrentQuestion(0);
-                  setCurrentAnswers(quiz.documentId, {});
-                  setShowResults(false);
-                }}
-                disabled={quiz.questions.length === 0}
-              >
-                Start Quiz
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
+            </div>
+          )}
+
+          {pendingQuizzes.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Pending Quizzes</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {pendingQuizzes.map((quiz) => (
+                  <Card key={quiz.documentId} className="border-gray-200 bg-gray-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <FileText className="h-5 w-5 text-gray-600" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
+                            <p className="text-sm text-gray-600">Quiz generation hasn't started yet</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                          PENDING
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {readyQuizzes.length === 0 && generatingQuizzes.length === 0 && failedQuizzes.length === 0 && pendingQuizzes.length === 0 && (
+            <Card className="text-center py-12">
+              <CardContent>
+                <Brain className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No quizzes available</h3>
+                <p className="text-gray-600 mb-6">Upload your course materials to generate personalized quizzes</p>
+                <Button variant="outline">Go to Upload Tab</Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </>
   );
 };
 
