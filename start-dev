@@ -3,9 +3,10 @@
 # Default options
 RECREATE=""
 DETACH=""
+BUILD=""
 
 # Parse arguments
-while getopts "rd" opt; do
+while getopts "rdb" opt; do
   case ${opt} in
     r )
       RECREATE="--force-recreate"
@@ -13,12 +14,15 @@ while getopts "rd" opt; do
     d )
       DETACH="-d"
       ;;
+    b )
+      BUILD="--build"
+      ;;
     \? )
-      echo "Usage: $0 [-r] [-d]"
+      echo "Usage: $0 [-r] [-d] [-b]"
       exit 1
       ;;
   esac
 done
 
 # Run docker compose with optional flags
-docker compose -f docker-compose.dev-no-traefik.yml up $RECREATE $DETACH
+docker compose -f docker-compose.dev-no-traefik.yml up $BUILD $RECREATE $DETACH
