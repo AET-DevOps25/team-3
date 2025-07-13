@@ -19,7 +19,7 @@ server:
       valueFrom:
         secretKeyRef:
           name: server-secret
-          key: database-url
+          key: databaseUrl
     - name: JWT_SECRET
       valueFrom:
         secretKeyRef:
@@ -57,7 +57,7 @@ genAi:
       valueFrom:
         secretKeyRef:
           name: server-secret
-          key: database-url
+          key: databaseUrl
     - name: WEAVIATE_HOST
       value: "{{ include \"studymate.fullname\" . }}-weaviate"
     - name: WEAVIATE_PORT
@@ -137,4 +137,4 @@ secrets:
     name: server-secret
     data:
       jwtSecret: ""
-      databaseUrl: ""
+      databaseUrl: ""}

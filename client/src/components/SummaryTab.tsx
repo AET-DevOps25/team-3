@@ -5,6 +5,7 @@ import { FileText, Clock, BookOpen, Download, Sparkles, Loader2, RefreshCw } fro
 import { apiService, DocumentInfo } from '../lib/api';
 import { useToast } from '../hooks/use-toast';
 import jsPDF from 'jspdf';
+import ReactMarkdown from 'react-markdown';
 
 interface SummaryTabProps {
   uploadedFiles: File[];
@@ -133,7 +134,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
     // Simple extraction: look for bullet points, numbered lists, or key phrases
     const sentences = summary.split(/[.!?]+/).filter(s => s.trim().length > 20);
     const keyPoints = sentences.slice(0, 4).map(sentence => 
-      sentence.trim().replace(/^[-•*]\s*/, '').substring(0, 100) + (sentence.length > 100 ? '...' : '')
+      sentence.trim().replace(/^[#\s]*[-•*]?\s*/, '').substring(0, 100) + (sentence.length > 100 ? '...' : '')
     );
     return keyPoints;
   };
@@ -383,7 +384,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                       {item.keyPoints.map((point, pointIndex) => (
                         <li key={pointIndex} className="flex items-start">
                           <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                          <span className="text-gray-700">{point}</span>
+                          <ReactMarkdown className="text-gray-700">{point}</ReactMarkdown>
                         </li>
                       ))}
                     </ul>
