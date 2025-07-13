@@ -1,0 +1,23 @@
+# validate_docker_compose.yaml
+- name: Validate Docker Compose Jinja template
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - include_tasks: tasks/env_vars.yml # load env variables
+
+    - name: Template compose file
+      template:
+        src: ../docker-compose.yml.j2
+        dest: /tmp/compose-validation.yaml
+        mode: '0644'
+
+    - name: Validate Docker Compose config
+      command: docker compose -f /tmp/compose-validation.yaml config
+      register: result
+      failed_when: result.rc != 0
+
+    - name: Delete temp file
+      file:
+        path: /tmp/compose-validation.yaml
+        state: absent

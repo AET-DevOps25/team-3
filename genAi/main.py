@@ -1,9 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from helpers import save_document
 from request_models import CreateSessionRequest, PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
 from llm import StudyLLM
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -39,9 +41,17 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+Instrumentator(
+    excluded_handlers=['/metrics'],
+    should_group_status_codes=False,
+    should_instrument_requests_inprogress=True
+    ).instrument(app).expose(app)
+
+
 # llm_instances["dummy"] = StudyLLM("./documents/example/W07_Microservices_and_Scalable_Architectures.pdf") # TODO: remove
 # llm_instances["dummy2"] = StudyLLM("./documents/example/dummy_knowledge.txt") # TODO: remove
 
+# Auxiliary Endpoints
 @app.get("/health")
 async def health_check():
     """Check the health of the service and its dependencies."""
@@ -51,6 +61,7 @@ async def health_check():
         return {"status": "unhealthy", "error": str(e)}
 
 
+# AI Tasks Endpoints
 @app.post("/session/load")
 async def load_session(data: CreateSessionRequest):
     """
@@ -82,7 +93,7 @@ async def receive_prompt(data: PromptRequest):
         if data.session_id not in llm_instances:
             error_msg = f"Session {data.session_id} not found. Please ensure the document was processed successfully."
             logger.error(error_msg)
-            return {"response": f"ERROR: {error_msg}"}
+            return JSONResponse(status_code=404, content={"response": f"ERROR: {error_msg}"})
         
         logger.info(f"Processing chat request for session {data.session_id}")
         response = await llm_instances[data.session_id].prompt(data.message)
