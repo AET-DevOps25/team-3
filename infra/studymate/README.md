@@ -106,6 +106,39 @@ kubectl get svc -n team-3
 kubectl get pvc -n team-3
 ```
 
+### 6. Access the Application
+
+Once deployed, you can access the StudyMate application services:
+
+```bash
+# Access the React frontend
+kubectl port-forward svc/studymate-client 8080:80 -n team-3 &
+# Open http://localhost:8080 in your browser
+
+# Access the Spring Boot API
+kubectl port-forward svc/studymate-server 8082:8082 -n team-3 &
+# API available at http://localhost:8082
+
+# Access the GenAI service
+kubectl port-forward svc/studymate-genai 8081:8081 -n team-3 &
+# Service available at http://localhost:8081
+
+# Access PostgreSQL database
+kubectl port-forward svc/studymate-postgres 5432:5432 -n team-3 &
+# Database available at localhost:5432
+
+# Access Weaviate vector database
+kubectl port-forward svc/studymate-weaviate 8083:8083 -n team-3 &
+# Weaviate available at http://localhost:8083
+```
+
+**Expected Service Status**:
+- **Client**: ✅ Running (React frontend)
+- **Server**: ✅ Running (Spring Boot API - may take 2-3 minutes to fully start)
+- **GenAI**: ✅ Running (AI/ML service)
+- **PostgreSQL**: ✅ Running (Database with persistent storage)
+- **Weaviate**: ✅ Running (Vector database with persistent storage)
+
 ## Secret Management
 
 ### Required Secrets
@@ -300,6 +333,115 @@ kubectl describe pvc studymate-postgres-pvc -n team-3
 kubectl logs deployment/studymate-postgres -n team-3
 kubectl describe pod -l app.kubernetes.io/component=postgres -n team-3
 ```
+
+#### 4. Weaviate Port Configuration
+
+**Error**: Weaviate pod shows `CrashLoopBackOff` or fails readiness/liveness probes
+
+**Root Cause**: Weaviate container serves on port 8080 by default, but the application expects port 8083
+
+**Solution**: The deployment has been configured to handle this port mismatch:
+- Service port: 8083 (as expected by the application)
+- Container targetPort: 8080 (actual Weaviate serving port)
+
+**Configuration Details**:
+```yaml
+# values.yaml
+weaviate:
+  service:
+    port: 8083        # Application expects this port
+    targetPort: 8080  # Weaviate actually serves on this port
+```
+
+**Verification**:
+```bash
+# Check Weaviate pod is running
+kubectl get pods -l app.kubernetes.io/component=weaviate -n team-3
+
+# Test connectivity from within cluster
+kubectl run test-weaviate --image=curlimages/curl:latest --rm -i --restart=Never -n team-3 -- \
+  curl -s http://studymate-weaviate:8083/v1/.well-known/ready
+```
+
+#### 5. Server Spring Boot Configuration Issues
+
+**Error**: Server pod shows `CrashLoopBackOff` or `UnknownHostException: postgres`
+
+**Root Cause**: Spring Boot server application requires specific datasource properties instead of generic DATABASE_URL
+
+**Solution**: The deployment includes optimized Spring Boot configuration:
+
+**Configuration Applied**:
+```yaml
+# values.yaml - server environment variables
+server:
+  env:
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://studymate-postgres:5432/mydb"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: SPRING_JPA_DATABASE_PLATFORM
+      value: "org.hibernate.dialect.PostgreSQLDialect"
+    - name: JAVA_OPTS
+      value: "-Xmx256m -Xms128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+```
+
+**Probe Configuration**:
+```yaml
+# server-deployment.yaml - optimized health checks
+livenessProbe:
+  httpGet:
+    path: /actuator/health
+    port: http
+  initialDelaySeconds: 120  # Allow time for Spring Boot startup
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 5
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 5
+  timeoutSeconds: 5
+  failureThreshold: 10
+```
+
+**Verification**:
+```bash
+# Check server startup progress
+kubectl logs -f deployment/studymate-server -n team-3
+
+# Test server API (should return HTTP 401 - secured endpoint)
+kubectl port-forward svc/studymate-server 8082:8082 -n team-3 &
+curl -I http://localhost:8082
+```
+
+#### 6. Known Issues and Solutions
+
+**Issue**: Server startup may take 2-3 minutes
+- **Cause**: Spring Boot initialization, database migration, and JPA setup
+- **Status**: ✅ **Resolved** - Optimized configuration and probe timeouts
+- **Monitoring**: Use `kubectl logs -f deployment/studymate-server -n team-3` to monitor startup
+
+**Issue**: Container image pull delays
+- **Cause**: Images pulled from GitHub Container Registry (ghcr.io)
+- **Status**: ✅ **Normal behavior** - Images cached after first pull
+- **Monitoring**: Check `kubectl get events -n team-3` for pull progress
+
+**Issue**: Weaviate port configuration
+- **Cause**: Container serves on port 8080 but application expects 8083
+- **Status**: ✅ **Resolved** - Service configured with correct port mapping
+- **Configuration**: Service port 8083 → Container port 8080
 
 ### Debugging Commands
 

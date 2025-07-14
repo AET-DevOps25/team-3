@@ -24,7 +24,7 @@ spec:
           imagePullPolicy: {{ .Values.weaviate.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: {{ .Values.weaviate.service.targetPort }}
+              containerPort: 8080
               protocol: TCP
           env:
             - name: HTTP_PORT

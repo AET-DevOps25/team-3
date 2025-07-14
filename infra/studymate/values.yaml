@@ -20,6 +20,24 @@ server:
         secretKeyRef:
           name: server-secret
           key: database-url
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://studymate-postgres:5432/mydb"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+      value: "update"
+    - name: SPRING_JPA_SHOW_SQL
+      value: "false"
+    - name: JAVA_OPTS
+      value: "-Xmx768m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
     - name: JWT_SECRET
       valueFrom:
         secretKeyRef:
@@ -108,7 +126,7 @@ weaviate:
   service:
     type: ClusterIP
     port: 8083
-    targetPort: 8083
+    targetPort: 8080
   replicaCount: 1
   persistence:
     size: 10Gi
