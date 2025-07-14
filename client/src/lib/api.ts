@@ -1,8 +1,9 @@
-// API service for communicating with the Spring Boot backend
-const API_BASE_URL = 'http://localhost:8082';
+// API service for communicating with the microservices backend
+const API_BASE_URL = 'http://localhost';
 
-// Common status type used throughout the application
-export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'READY' | 'ERROR';
+// Common status type used throughout the application  
+// Aligned with backend DocumentStatus enum - backend uses PROCESSED as final ready state
+export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'ERROR';
 
 // Authentication interfaces
 export interface UserRegistrationRequest {
@@ -254,11 +255,16 @@ class ApiService {
   private async authenticatedFetch(url: string, options: RequestInit = {}): Promise<Response> {
     const token = TokenManager.getToken();
     
-    // Add authorization header
+    // Add authorization header and user ID
     if (token) {
+      // Extract username from JWT token for X-User-ID header
+      const userInfo = this.getCurrentUserFromToken();
+      const userId = userInfo?.username || 'unknown';
+      
       options.headers = {
         ...options.headers,
         'Authorization': `Bearer ${token}`,
+        'X-User-ID': userId,
       };
     }
 
@@ -534,7 +540,7 @@ class ApiService {
 
   // Chat methods
   async createChatSession(documentIds: string[]): Promise<ChatSessionResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/chat/sessions`, {
+    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/sessions`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ documentIds }),
@@ -549,7 +555,7 @@ class ApiService {
   }
 
   async getChatSession(sessionId: string): Promise<ChatSessionResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/chat/sessions/${sessionId}`);
+    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/sessions/${sessionId}`);
     
     if (!response.ok) {
       throw new Error(`Failed to get chat session: ${response.status} ${response.statusText}`);
@@ -559,7 +565,7 @@ class ApiService {
   }
 
   async sendMessage(sessionId: string, message: string, documentIds: string[] = []): Promise<ChatMessageResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/chat/sessions/${sessionId}/messages`, {
+    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/sessions/${sessionId}/messages`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ 
@@ -577,7 +583,7 @@ class ApiService {
   }
 
   async getQuizForDocument(documentId: string): Promise<QuizApiResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/quiz/documents/${documentId}`);
+    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/quiz/documents/${documentId}`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
@@ -608,7 +614,7 @@ class ApiService {
   }
 
   async getFlashcardsForDocument(documentId: string): Promise<FlashcardApiResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/flashcards/documents/${documentId}`);
+    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/flashcards/documents/${documentId}`);
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));

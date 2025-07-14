@@ -34,7 +34,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
   // Helper function for status badge styling
   const getStatusBadgeStyle = (status: string) => {
     switch (status) {
-      case 'READY':
+      case 'PROCESSED':
         return 'bg-green-100 text-green-600';
       case 'PROCESSING':
         return 'bg-yellow-100 text-yellow-600';
@@ -66,7 +66,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
 
   // Consolidated document categorization
   const categorizedSummaries = summaries.reduce((acc, summary) => {
-    if (summary.summaryStatus === 'READY') {
+    if (summary.summaryStatus === 'PROCESSED') {
       acc.ready.push(summary);
     } else if (summary.summaryStatus === 'PROCESSING') {
       acc.processing.push(summary);

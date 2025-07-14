@@ -103,6 +103,10 @@ class StudyLLM:
         )
 
         result = await chain.ainvoke({"input_documents": self.rag_helper.summary_chunks})
+        print(f"Raw chain result: {result}")
+        print(f"Chain result type: {type(result)}")
+        print(f"Chain result keys: {result.keys()}")
+        print(f"Output text: {result['output_text']}")
         
         return result["output_text"]
         

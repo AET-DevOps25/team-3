@@ -13,9 +13,25 @@ providers:
 entryPoints:
   web:
     address: ":80"
+    transport:
+      lifeCycle:
+        requestAcceptGraceTimeout: "0"
+        graceTimeOut: "0"
+      respondingTimeouts:
+        readTimeout: "600s"
+        writeTimeout: "600s"
+        idleTimeout: "600s"
 
   websecure:
     address: ":443"
+    transport:
+      lifeCycle:
+        requestAcceptGraceTimeout: "0"
+        graceTimeOut: "0"
+      respondingTimeouts:
+        readTimeout: "600s"
+        writeTimeout: "600s"
+        idleTimeout: "600s"
 
 certificatesResolvers:
   myresolver:

@@ -17,6 +17,7 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -32,12 +33,56 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
     const initializeChatSession = async () => {
       if (documentIds.length > 0 && !sessionId) {
         setIsLoading(true);
+        setError(null);
         try {
-          const response = await apiService.createChatSession(documentIds);
+          // Check if documents are ready for chat
+          const documentStatuses = await Promise.all(
+            documentIds.map(async (docId) => {
+              try {
+                const content = await apiService.getDocumentContent(docId);
+                return {
+                  id: docId,
+                  name: content.originalName || 'Unknown Document',
+                  status: content.status,
+                  summaryStatus: content.summaryStatus,
+                  isReady: content.status === 'PROCESSED' || content.summaryStatus === 'PROCESSED'
+                };
+              } catch (error) {
+                return {
+                  id: docId,
+                  name: 'Unknown Document',
+                  status: 'ERROR',
+                  summaryStatus: 'ERROR',
+                  isReady: false
+                };
+              }
+            })
+          );
+
+          const readyDocuments = documentStatuses.filter(doc => doc.isReady);
+          const processingDocuments = documentStatuses.filter(doc => 
+            doc.status === 'PROCESSING' || doc.summaryStatus === 'PROCESSING' ||
+            doc.status === 'UPLOADED' || doc.summaryStatus === 'UPLOADED'
+          );
+
+          if (readyDocuments.length === 0) {
+            if (processingDocuments.length > 0) {
+              setError(`Documents are still being processed. Please wait for processing to complete before starting a chat session.`);
+            } else {
+              setError('No processed documents available for chat. Please upload and process documents first.');
+            }
+            setIsLoading(false);
+            return;
+          }
+
+          // Create chat session with ready documents only
+          const readyDocumentIds = readyDocuments.map(doc => doc.id);
+          const response = await apiService.createChatSession(readyDocumentIds);
           setSessionId(response.sessionId);
           setMessages(response.messages);
         } catch (error) {
           console.error('Failed to create chat session:', error);
+          setError('Failed to create chat session. Please make sure your documents are fully processed.');
         } finally {
           setIsLoading(false);
         }
@@ -46,6 +91,19 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
 
     initializeChatSession();
   }, [documentIds, sessionId]);
+
+  // Poll for document processing updates when documents are still being processed
+  useEffect(() => {
+    if (error && error.includes('still being processed') && !sessionId) {
+      const interval = setInterval(() => {
+        // Retry chat session creation
+        setError(null);
+        setSessionId(null); // This will trigger the useEffect above
+      }, 30000); // Poll every 30 seconds
+
+      return () => clearInterval(interval);
+    }
+  }, [error, sessionId]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !sessionId) return;
@@ -114,6 +172,27 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Initializing Chat</h3>
           <p className="text-gray-600">Setting up your AI study assistant...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="text-center py-12 border-red-200">
+        <CardContent>
+          <MessageSquare className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Chat Unavailable</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setError(null);
+              setSessionId(null);
+            }}
+          >
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );

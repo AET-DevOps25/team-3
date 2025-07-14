@@ -1,0 +1,169 @@
+version: '3.8'
+
+services:
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Dashboard port
+    volumes:
+      - "./traefik/traefik.yml:/etc/traefik/traefik.yml:ro"
+      - "./traefik/acme.json:/letsencrypt/acme.json"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      - proxy
+
+  auth-service:
+    build:
+      context: ./microservices/auth-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8086:8083"  # Changed from 8083:8083 to 8086:8083 to avoid conflict with Weaviate
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`localhost`) && PathPrefix(`/api/auth`)"
+      - "traefik.http.routers.auth.entrypoints=web"
+      - "traefik.http.routers.auth.priority=100"
+      - "traefik.http.services.auth.loadbalancer.server.port=8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - postgres
+
+  document-service:
+    build:
+      context: ./microservices/document-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8084:8084"  # Direct access for development
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.document.rule=Host(`localhost`) && PathPrefix(`/api/documents`)"
+      - "traefik.http.routers.document.entrypoints=web"
+      - "traefik.http.routers.document.priority=100"
+      - "traefik.http.services.document.loadbalancer.server.port=8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/document_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - postgres
+
+  genai-service:
+    build:
+      context: ./microservices/genai-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8085:8085"  # Direct access for development
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.genai-service.rule=Host(`localhost`) && PathPrefix(`/api/genai`)"
+      - "traefik.http.routers.genai-service.entrypoints=web"
+      - "traefik.http.routers.genai-service.priority=100"
+      - "traefik.http.services.genai-service.loadbalancer.server.port=8085"
+    environment:
+      - GENAI_BACKEND_URL=http://genai:8081
+      - DOCUMENT_SERVICE_URL=http://document-service:8084
+    depends_on:
+      - genai
+
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"  # Direct access for development
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.rule=Host(`localhost`)"
+      - "traefik.http.routers.client.entrypoints=web"
+      - "traefik.http.routers.client.priority=1"
+      - "traefik.http.services.client.loadbalancer.server.port=80"
+
+  genai:
+    build:
+      context: ./genAi
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8081:8081"  # Direct access for development
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.genai-backend.rule=Host(`localhost`) && PathPrefix(`/genai-backend`)"
+      - "traefik.http.routers.genai-backend.entrypoints=web"
+      - "traefik.http.routers.genai-backend.priority=50"
+      - "traefik.http.services.genai-backend.loadbalancer.server.port=8081"
+    environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8087
+      - OPEN_WEBUI_API_KEY_CHAT=sk-5760c1bddad74624a09046ef2bc6c8dc
+      - OPEN_WEBUI_API_KEY_GEN=sk-8cc49d1e38ee436b93b9fbd31795b320
+      
+
+    depends_on:
+      - weaviate
+
+  postgres:
+    image: postgres:15
+    ports: # TODO: remove?
+      - "5432:5432"
+    environment: # TODO: replace values with an env variables & secrets
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database_setup_microservices.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - proxy
+
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8087'
+      - --scheme
+      - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
+    ports: # TODO: remove?
+      - 8087:8087
+      - 50051:50051
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - proxy
+    restart: on-failure:0
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      ENABLE_API_BASED_MODULES: 'true'
+      CLUSTER_HOSTNAME: 'node1'
+
+volumes:
+  pgdata:
+  weaviate_data:
+
+networks:
+  proxy:
+    name: proxy-net 
