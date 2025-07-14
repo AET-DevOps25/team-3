@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "studymate.fullname" . }}-weaviate-pvc
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: weaviate
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.weaviate.persistence.size | default "10Gi" }}
+  {{- if .Values.weaviate.persistence.storageClass }}
+  storageClassName: {{ .Values.weaviate.persistence.storageClass }}
+  {{- end }}

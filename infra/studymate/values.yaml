@@ -73,6 +73,9 @@ postgres:
     port: 5432
     targetPort: 5432
   replicaCount: 1
+  persistence:
+    size: 8Gi
+    storageClass: ""  # Use default storage class
   env:
     - name: POSTGRES_USER
       valueFrom:
@@ -97,6 +100,9 @@ weaviate:
     port: 8083
     targetPort: 8083
   replicaCount: 1
+  persistence:
+    size: 10Gi
+    storageClass: ""  # Use default storage class
   env:
     - name: QUERY_DEFAULTS_LIMIT
       value: "25"
@@ -137,4 +143,4 @@ secrets:
     name: server-secret
     data:
       jwtSecret: ""
-      databaseUrl: ""}
+      databaseUrl: ""

@@ -52,4 +52,5 @@ spec:
               memory: 512Mi
       volumes:
         - name: weaviate-storage
-          emptyDir: {} 
+          persistentVolumeClaim:
+            claimName: {{ include "studymate.fullname" . }}-weaviate-pvc 
