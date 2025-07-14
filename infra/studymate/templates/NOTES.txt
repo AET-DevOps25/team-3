@@ -5,18 +5,43 @@
   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path }}
   {{- end }}
 {{- end }}
-{{- else if contains "NodePort" .Values.service.type }}
-  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "studymate.fullname" . }})
-  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+{{- else if contains "NodePort" .Values.client.service.type }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Values.teamid }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "studymate.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Values.teamid }} -o jsonpath="{.items[0].status.addresses[0].address}")
   echo http://$NODE_IP:$NODE_PORT
-{{- else if contains "LoadBalancer" .Values.service.type }}
+{{- else if contains "LoadBalancer" .Values.client.service.type }}
      NOTE: It may take a few minutes for the LoadBalancer IP to be available.
-           You can watch its status by running 'kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "studymate.fullname" . }}'
-  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "studymate.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
-  echo http://$SERVICE_IP:{{ .Values.service.port }}
-{{- else if contains "ClusterIP" .Values.service.type }}
-  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "studymate.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
-  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Release.Namespace }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+           You can watch the status of by running 'kubectl get --namespace {{ .Values.teamid }} svc -w {{ include "studymate.fullname" . }}'
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Values.teamid }} {{ include "studymate.fullname" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo http://$SERVICE_IP:{{ .Values.client.service.port }}
+{{- else if contains "ClusterIP" .Values.client.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Values.teamid }} -l "app.kubernetes.io/name={{ include "studymate.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace {{ .Values.teamid }} $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
   echo "Visit http://127.0.0.1:8080 to use your application"
-  kubectl --namespace {{ .Release.Namespace }} port-forward $POD_NAME 8080:$CONTAINER_PORT
+  kubectl --namespace {{ .Values.teamid }} port-forward $POD_NAME 8080:$CONTAINER_PORT
 {{- end }}
+
+2. Secret Management:
+   IMPORTANT: Secrets must be provided during installation. Use:
+   
+   helm install studymate ./infra/studymate -n {{ .Values.teamid }} \
+     --set-string secrets.postgres.data.password=<strong-password> \
+     --set-string secrets.genai.data.apiKey=<openai-api-key> \
+     --set-string secrets.server.data.jwtSecret=<jwt-secret> \
+     --set-string secrets.server.data.databaseUrl=<database-url>
+
+3. Generate secure secrets:
+   # PostgreSQL password (32 characters)
+   openssl rand -base64 32
+   
+   # JWT secret (64 characters)
+   openssl rand -base64 64
+   
+   # Database URL format:
+   postgresql://postgres:<password>@{{ include "studymate.fullname" . }}-postgres:5432/mydb
+
+4. Using existing secrets:
+   helm install studymate ./infra/studymate -n {{ .Values.teamid }} \
+     --set secrets.postgres.existingSecret=my-postgres-secret \
+     --set secrets.genai.existingSecret=my-genai-secret \
+     --set secrets.server.existingSecret=my-server-secret

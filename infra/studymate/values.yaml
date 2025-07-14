@@ -19,7 +19,7 @@ server:
       valueFrom:
         secretKeyRef:
           name: server-secret
-          key: databaseUrl
+          key: database-url
     - name: JWT_SECRET
       valueFrom:
         secretKeyRef:
@@ -53,11 +53,21 @@ genAi:
         secretKeyRef:
           name: genai-secret
           key: api-key
+    - name: OPEN_WEBUI_API_KEY_CHAT
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: open-webui-api-key-chat
+    - name: OPEN_WEBUI_API_KEY_GEN
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: open-webui-api-key-gen
     - name: DATABASE_URL
       valueFrom:
         secretKeyRef:
           name: server-secret
-          key: databaseUrl
+          key: database-url
     - name: WEAVIATE_HOST
       value: "{{ include \"studymate.fullname\" . }}-weaviate"
     - name: WEAVIATE_PORT
@@ -114,6 +124,10 @@ weaviate:
       value: "true"
     - name: CLUSTER_HOSTNAME
       value: "node1"
+    - name: HTTP_PORT
+      value: "8083"
+    - name: GRPC_PORT
+      value: "50051"
 
 ingress:
   enabled: true
@@ -122,25 +136,31 @@ ingress:
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
 
-# Define secret creation in values
+# Secret management configuration
 secrets:
   postgres:
     create: true
     name: postgres-secret
+    # Use external secret management or set via --set-string
+    # Never commit actual secret values to version control
+    existingSecret: ""  # Name of existing secret to use instead of creating new one
     data:
       username: postgres
-      password: "" # This should be set via --set-string or separate secret file
+      password: null  # REQUIRED: Set via --set-string secrets.postgres.data.password=<value>
 
-  # You might need additional secrets for:
   genai:
     create: true
     name: genai-secret
+    existingSecret: ""  # Name of existing secret to use instead of creating new one
     data:
-      apiKey: ""
+      apiKey: null  # REQUIRED: Set via --set-string secrets.genai.data.apiKey=<value>
+      openWebUiApiKeyChat: null  # REQUIRED: Set via --set-string secrets.genai.data.openWebUiApiKeyChat=<value>
+      openWebUiApiKeyGen: null  # REQUIRED: Set via --set-string secrets.genai.data.openWebUiApiKeyGen=<value>
       
   server:
     create: true  
     name: server-secret
+    existingSecret: ""  # Name of existing secret to use instead of creating new one
     data:
-      jwtSecret: ""
-      databaseUrl: ""
+      jwtSecret: null  # REQUIRED: Set via --set-string secrets.server.data.jwtSecret=<value>
+      databaseUrl: null  # REQUIRED: Set via --set-string secrets.server.data.databaseUrl=<value>

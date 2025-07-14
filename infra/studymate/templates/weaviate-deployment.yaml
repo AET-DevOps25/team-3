@@ -27,6 +27,10 @@ spec:
               containerPort: {{ .Values.weaviate.service.targetPort }}
               protocol: TCP
           env:
+            - name: HTTP_PORT
+              value: "8083"
+            - name: GRPC_PORT
+              value: "50051"
             {{- toYaml .Values.weaviate.env | nindent 12 }}
           volumeMounts:
             - name: weaviate-storage
