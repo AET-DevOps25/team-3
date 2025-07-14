@@ -37,7 +37,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
       case 'PROCESSED':
         return 'bg-green-100 text-green-600';
       case 'PROCESSING':
-        return 'bg-yellow-100 text-yellow-600';
+        return 'bg-blue-100 text-blue-600';
       case 'ERROR':
         return 'bg-red-100 text-red-600';
       default:
@@ -48,7 +48,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
   // Helper function for card styling
   const getCardStyle = (status: string) => {
     if (status === 'ERROR') return 'border-red-200 bg-red-50';
-    if (status === 'PROCESSING') return 'border-yellow-200 bg-yellow-50';
+    if (status === 'PROCESSING') return 'border-blue-200 bg-blue-50';
     return 'border-gray-200 bg-gray-50';
   };
 
@@ -432,7 +432,7 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <Loader2 className="h-5 w-5 text-yellow-600 animate-spin" />
+                      <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
                       <div>
                         <h4 className="font-medium text-gray-900">{item.name}</h4>
                         <p className="text-sm text-gray-600">

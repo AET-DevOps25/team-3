@@ -35,54 +35,13 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
         setIsLoading(true);
         setError(null);
         try {
-          // Check if documents are ready for chat
-          const documentStatuses = await Promise.all(
-            documentIds.map(async (docId) => {
-              try {
-                const content = await apiService.getDocumentContent(docId);
-                return {
-                  id: docId,
-                  name: content.originalName || 'Unknown Document',
-                  status: content.status,
-                  summaryStatus: content.summaryStatus,
-                  isReady: content.status === 'PROCESSED' || content.summaryStatus === 'PROCESSED'
-                };
-              } catch (error) {
-                return {
-                  id: docId,
-                  name: 'Unknown Document',
-                  status: 'ERROR',
-                  summaryStatus: 'ERROR',
-                  isReady: false
-                };
-              }
-            })
-          );
-
-          const readyDocuments = documentStatuses.filter(doc => doc.isReady);
-          const processingDocuments = documentStatuses.filter(doc => 
-            doc.status === 'PROCESSING' || doc.summaryStatus === 'PROCESSING' ||
-            doc.status === 'UPLOADED' || doc.summaryStatus === 'UPLOADED'
-          );
-
-          if (readyDocuments.length === 0) {
-            if (processingDocuments.length > 0) {
-              setError(`Documents are still being processed. Please wait for processing to complete before starting a chat session.`);
-            } else {
-              setError('No processed documents available for chat. Please upload and process documents first.');
-            }
-            setIsLoading(false);
-            return;
-          }
-
-          // Create chat session with ready documents only
-          const readyDocumentIds = readyDocuments.map(doc => doc.id);
-          const response = await apiService.createChatSession(readyDocumentIds);
+          // Create chat session immediately with all provided documents
+          const response = await apiService.createChatSession(documentIds);
           setSessionId(response.sessionId);
           setMessages(response.messages);
         } catch (error) {
           console.error('Failed to create chat session:', error);
-          setError('Failed to create chat session. Please make sure your documents are fully processed.');
+          setError('Failed to create chat session. Please try again.');
         } finally {
           setIsLoading(false);
         }
@@ -92,18 +51,7 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
     initializeChatSession();
   }, [documentIds, sessionId]);
 
-  // Poll for document processing updates when documents are still being processed
-  useEffect(() => {
-    if (error && error.includes('still being processed') && !sessionId) {
-      const interval = setInterval(() => {
-        // Retry chat session creation
-        setError(null);
-        setSessionId(null); // This will trigger the useEffect above
-      }, 30000); // Poll every 30 seconds
-
-      return () => clearInterval(interval);
-    }
-  }, [error, sessionId]);
+  // Remove polling logic since we don't wait for processing anymore
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !sessionId) return;
