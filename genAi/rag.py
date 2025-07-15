@@ -205,7 +205,7 @@ class RAGHelper:
         Filters by user_id and document source.
 
         Returns:
-            list[str]: A list of strings, where each string is a generation chunk,
+            list[Document]: A list of documents, where each doc is a generation chunk,
                        sorted by their original chunk index.
         """
         summary_collection = self.weaviate_client.collections.get("SummaryChunksIndex")
