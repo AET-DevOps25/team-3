@@ -48,8 +48,8 @@ Instrumentator(
     ).instrument(app).expose(app)
 
 
-# llm_instances["dummy"] = StudyLLM("./documents/example/W07_Microservices_and_Scalable_Architectures.pdf") # TODO: remove
-# llm_instances["dummy2"] = StudyLLM("./documents/example/dummy_knowledge.txt") # TODO: remove
+llm_instances["dummy"] = StudyLLM(user_id='dummy', doc_path="./documents/example/dummy_knowledge.txt") # TODO: remove
+# llm_instances["dummy2"] = StudyLLM(user_id='dummy', doc_path="./documents/example/W07_Microservices_and_Scalable_Architectures.pdf") # TODO: remove
 
 # Auxiliary Endpoints
 @app.get("/health")
@@ -75,7 +75,7 @@ async def load_session(data: CreateSessionRequest):
         logger.info(f"Creating new session {data.session_id} for document {data.document_name}")
         doc_name = f"{data.session_id}_{data.document_name}"
         path = save_document(doc_name, data.document_base64)
-        llm_instances[data.session_id] = StudyLLM(path)
+        llm_instances[data.session_id] = StudyLLM(user_id=data.session_id, doc_path=path)
         logger.info(f"Session {data.session_id} created successfully")
         return {"message": "Session created successfully."}
     except Exception as e:

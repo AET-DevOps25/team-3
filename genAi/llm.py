@@ -28,7 +28,7 @@ class StudyLLM:
         base_url="https://gpu.aet.cit.tum.de/api/"
     )
     
-    def __init__(self, doc_path: str):
+    def __init__(self, user_id: str, doc_path: str):
         base_system_template = ("You are an expert on the information in the context given below.\n"
                                      "Use the context as your primary knowledge source. If you can't fulfill your task given the context, just say that.\n"
                                     "context: {context}\n"
@@ -39,7 +39,7 @@ class StudyLLM:
             ('human', '{input}')
         ])
         try: 
-            self.rag_helper = RAGHelper(doc_path)
+            self.rag_helper = RAGHelper(user_id=user_id, doc_path=doc_path)
         except Exception as e:
             raise ValueError(f"Error initializing RAGHelper: {e}")
 
@@ -102,7 +102,8 @@ class StudyLLM:
             combine_prompt=combine_prompt
         )
 
-        result = await chain.ainvoke({"input_documents": self.rag_helper.summary_chunks})
+        chunks = self.rag_helper.get_generation_chunks()
+        result = await chain.ainvoke({"input_documents": chunks})
         
         return result["output_text"]
         
@@ -114,7 +115,8 @@ class StudyLLM:
             list: A list of flashcard objects.
         """
         flashcard_chain = FlashcardChain(self.generation_llm)
-        cards = await flashcard_chain.invoke(self.rag_helper.summary_chunks)
+        chunks = self.rag_helper.get_generation_chunks()
+        cards = await flashcard_chain.invoke(chunks)
         return cards
     
     async def generate_quiz(self):
@@ -125,7 +127,8 @@ class StudyLLM:
             list: A quiz object.
         """
         quiz_chain = QuizChain(self.generation_llm)
-        quiz = await quiz_chain.invoke(self.rag_helper.summary_chunks)
+        chunks = self.rag_helper.get_generation_chunks()
+        quiz = await quiz_chain.invoke(chunks)
         return quiz
     
     def cleanup(self):
