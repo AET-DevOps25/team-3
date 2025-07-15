@@ -116,9 +116,6 @@ async def generate_summary(data: SummaryRequest):
         
         logger.info(f"Generating summary for session {data.session_id}")
         response = await llm_instances[data.session_id].summarize()
-        logger.info(f"Raw summary response: {response}")
-        logger.info(f"Summary response type: {type(response)}")
-        logger.info(f"Summary generated successfully for session {data.session_id}")
         return {"response": response}
     except Exception as e:
         error_msg = f"Summary generation error for session {data.session_id}: {str(e)}"
