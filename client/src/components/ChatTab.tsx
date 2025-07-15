@@ -17,6 +17,7 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -32,12 +33,15 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
     const initializeChatSession = async () => {
       if (documentIds.length > 0 && !sessionId) {
         setIsLoading(true);
+        setError(null);
         try {
+          // Create chat session immediately with all provided documents
           const response = await apiService.createChatSession(documentIds);
           setSessionId(response.sessionId);
           setMessages(response.messages);
         } catch (error) {
           console.error('Failed to create chat session:', error);
+          setError('Failed to create chat session. Please try again.');
         } finally {
           setIsLoading(false);
         }
@@ -46,6 +50,8 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
 
     initializeChatSession();
   }, [documentIds, sessionId]);
+
+  // Remove polling logic since we don't wait for processing anymore
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !sessionId) return;
@@ -114,6 +120,27 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">Initializing Chat</h3>
           <p className="text-gray-600">Setting up your AI study assistant...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="text-center py-12 border-red-200">
+        <CardContent>
+          <MessageSquare className="h-16 w-16 text-red-400 mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Chat Unavailable</h3>
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setError(null);
+              setSessionId(null);
+            }}
+          >
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );

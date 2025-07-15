@@ -19,6 +19,11 @@
         src: ../docker-compose.yml.j2
         dest: "{{ project_dir }}/docker-compose.yml"
 
+    - name: Copy database setup script for microservices
+      copy:
+        src: ../database_setup_microservices.sql
+        dest: "{{ project_dir }}/database_setup_microservices.sql"
+
     - name: Copy Traefik configuration files
       copy:
         src: ../traefik/

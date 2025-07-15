@@ -33,15 +33,30 @@ jobs:
           LANGSMITH_API_KEY: dummy_key
         run: ansible-playbook ansible/validate-compose.yml
 
+      - name: Build auth-service (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./microservices/auth-service
+          echo "✅ Auth Service build successful"
+
+      - name: Build document-service (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./microservices/document-service
+          echo "✅ Document Service build successful"
+
+      - name: Build genai-service (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./microservices/genai-service
+          echo "✅ GenAI Service build successful"
+
+      - name: Build eureka-server (validation only)
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./microservices/eureka-server
+          echo "✅ Eureka Server build successful"
+
       - name: Build client (validation only)
         run: |
           docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
           echo "✅ Client build successful"
-
-      - name: Build server (validation only)
-        run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/server:${COMMIT_SHA} ./server
-          echo "✅ Server build successful"
 
       - name: Build genai (validation only)
         run: |
@@ -50,6 +65,7 @@ jobs:
 
       - name: Validation Summary
         run: |
-          echo "🎉 All Docker images built successfully!"
+          echo "🎉 All Docker images built successfully using multi-stage builds!"
+          echo "Microservices (auth, document, genai-service, eureka) + client + genAI all validated!"
           echo "This was a validation build - no images were pushed to registry."
           echo "Images will be built and pushed when merged to main branch." 

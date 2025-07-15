@@ -116,7 +116,6 @@ async def generate_summary(data: SummaryRequest):
         
         logger.info(f"Generating summary for session {data.session_id}")
         response = await llm_instances[data.session_id].summarize()
-        logger.info(f"Summary generated successfully for session {data.session_id}")
         return {"response": response}
     except Exception as e:
         error_msg = f"Summary generation error for session {data.session_id}: {str(e)}"
@@ -162,3 +161,31 @@ async def generate_quiz(data: QuizRequest):
         error_msg = f"Quiz generation error for session {data.session_id}: {str(e)}"
         logger.error(error_msg)
         return {"response": {"questions": [], "error": error_msg}}
+
+@app.post("/process")
+async def process_document(data: SummaryRequest):
+    """Compatibility endpoint for Kotlin genai-service (/process).
+    It creates a session (if not present) and immediately returns QUEUED.
+    (Actual processing e.g. summary generation can be triggered asynchronously.)"""
+    try:
+        session_id = data.session_id or data.document_id
+        if session_id not in llm_instances:
+            logger.info(f"/process received – creating session {session_id}")
+            # save document and create LLM instance
+            doc_name = f"{session_id}_{data.document_name or 'doc.pdf'}"
+            path = save_document(doc_name, data.document_base64 or "")
+            llm_instances[session_id] = StudyLLM(path)
+        return {
+            "requestId": session_id,
+            "status": "QUEUED",
+            "message": "Document queued for processing",
+            "estimatedTime": None
+        }
+    except Exception as e:
+        logger.error(f"/process error: {str(e)}")
+        return {
+            "requestId": None,
+            "status": "FAILED",
+            "message": f"Failed to process document: {str(e)}",
+            "estimatedTime": None
+        }

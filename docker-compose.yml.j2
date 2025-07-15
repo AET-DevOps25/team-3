@@ -28,24 +28,74 @@ services:
       - "traefik.http.routers.client.tls.certresolver=myresolver"
       - "traefik.http.services.client.loadbalancer.server.port=80"
 
-  server:
-    image: ghcr.io/aet-devops25/team-3/server:{{ image_tag }}
+  auth-service:
+    image: ghcr.io/aet-devops25/team-3/auth-service:{{ image_tag }}
     restart: unless-stopped
     networks:
       - proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.server.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.server.entrypoints=websecure"
-      - "traefik.http.routers.server.tls.certresolver=myresolver"
-      - "traefik.http.services.server.loadbalancer.server.port=8082"
-    environment: # TODO: replace values with an env variables & secrets
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/mydb
+      - "traefik.http.routers.auth.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api/auth`)"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=myresolver"
+      - "traefik.http.routers.auth.priority=100"
+      - "traefik.http.services.auth.loadbalancer.server.port=8083"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=placeholder
+      - SPRING_DATASOURCE_PASSWORD=postgres
     depends_on:
       - postgres
-      - weaviate
+
+  document-service:
+    image: ghcr.io/aet-devops25/team-3/document-service:{{ image_tag }}
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.document.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api/documents`)"
+      - "traefik.http.routers.document.entrypoints=websecure"
+      - "traefik.http.routers.document.tls.certresolver=myresolver"
+      - "traefik.http.routers.document.priority=100"
+      - "traefik.http.services.document.loadbalancer.server.port=8084"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/document_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - postgres
+
+  genai-service:
+    image: ghcr.io/aet-devops25/team-3/genai-service:{{ image_tag }}
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.genai-service.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/api/genai`)"
+      - "traefik.http.routers.genai-service.entrypoints=websecure"
+      - "traefik.http.routers.genai-service.tls.certresolver=myresolver"
+      - "traefik.http.routers.genai-service.priority=100"
+      - "traefik.http.services.genai-service.loadbalancer.server.port=8085"
+    environment:
+      - GENAI_BACKEND_URL=http://genai:8081
+      - DOCUMENT_SERVICE_URL=http://document-service:8084
+    depends_on:
+      - genai
+
+  eureka-server:
+    image: ghcr.io/aet-devops25/team-3/eureka-server:{{ image_tag }}
+    restart: unless-stopped
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.eureka.rule=Host(`studymate-tum.xyz`) && PathPrefix(`/eureka`)"
+      - "traefik.http.routers.eureka.entrypoints=websecure"
+      - "traefik.http.routers.eureka.tls.certresolver=myresolver"
+      - "traefik.http.routers.eureka.priority=100"
+      - "traefik.http.services.eureka.loadbalancer.server.port=8761"
 
   genai:
     image: ghcr.io/aet-devops25/team-3/genai:{{ image_tag }}
@@ -77,9 +127,11 @@ services:
     environment: # TODO: replace values with an env variables & secrets
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: mydb
+      POSTGRES_DB: postgres
+      POSTGRES_MULTIPLE_DATABASES: auth_db,document_db
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./database_setup_microservices.sql:/docker-entrypoint-initdb.d/database_setup_microservices.sql
     networks:
       - proxy
 

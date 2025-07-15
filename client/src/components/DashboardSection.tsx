@@ -13,6 +13,14 @@ interface UploadedFileWithId {
   documentId: string;
 }
 
+interface QuizData {
+  questions: any[];
+  documentName: string;
+  documentId: string;
+  status?: 'UPLOADED' | 'PROCESSING' | 'PROCESSED' | 'ERROR' | 'PENDING';
+  error?: string;
+}
+
 interface DashboardSectionProps {
   uploadedFiles: UploadedFileWithId[];
   onFileUpload: (files: File[], documentIds: string[]) => void;
@@ -22,19 +30,14 @@ interface DashboardSectionProps {
 
 const DashboardSection = ({ uploadedFiles, onFileUpload, onBackToHome, isLoadingDocuments = false }: DashboardSectionProps) => {
   const [activeTab, setActiveTab] = useState('upload');
-  const [quizzes, setQuizzes] = useState([]);
-  const [answers, setAnswers] = useState({}); // answers: { [documentId: string]: { [questionIndex: number]: string | number } }
-  
-  console.log('DashboardSection render - uploadedFiles length:', uploadedFiles.length);
-  console.log('DashboardSection render - uploadedFiles:', uploadedFiles.map(f => ({ name: f.file.name, id: f.documentId })));
+  const [quizzes, setQuizzes] = useState<QuizData[]>([]);
+  const [answers, setAnswers] = useState<{ [documentId: string]: { [questionIndex: number]: string | number } }>({});
   
   // Extract files and document IDs with memoization to prevent unnecessary re-renders
   const files = useMemo(() => {
-    console.log('DashboardSection - files memo recalculated');
     return uploadedFiles.map(item => item.file);
   }, [uploadedFiles]);
   const documentIds = useMemo(() => {
-    console.log('DashboardSection - documentIds memo recalculated:', uploadedFiles.map(item => item.documentId));
     return uploadedFiles.map(item => item.documentId);
   }, [uploadedFiles]);
 

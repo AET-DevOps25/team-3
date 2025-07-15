@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { BookOpen, RotateCcw, ChevronLeft, ChevronRight, Shuffle, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { BookOpen, RotateCcw, ChevronLeft, ChevronRight, Shuffle, Eye, EyeOff, Loader2, XCircle } from 'lucide-react';
 import { apiService, FlashcardModel, DocumentStatus } from '../lib/api';
 
 interface FlashcardsTabProps {
@@ -32,12 +32,10 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
 
   useEffect(() => {
     const newDocumentIds = documentIds.filter(id => !fetchedDocumentIds.current.has(id));
+    
     if (newDocumentIds.length === 0) return;
     
-    // Mark as being processed to avoid duplicate processing
-    newDocumentIds.forEach(id => processingDocumentIds.current.add(id));
-    
-    // First, add pending entries for new documents
+    // Immediately add pending entries for new documents to show loading state
     const pendingEntries = newDocumentIds.map(documentId => ({
       id: documentId,
       title: 'Loading...',
@@ -46,23 +44,33 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
       source: 'Loading...',
       difficulty: 'Unknown',
       status: 'PENDING' as const,
-      error: undefined,
+      error: 'Preparing flashcards...',
       flashcards: []
     }));
     
-    setFlashcardDecks(prevDecks => [...prevDecks, ...pendingEntries]);
+    setFlashcardDecks(prevDecks => {
+      const existingDecks = prevDecks.filter(d => !newDocumentIds.includes(d.id));
+      const newDecks = [...existingDecks, ...pendingEntries];
+      return newDecks;
+    });
     
     const fetchFlashcards = async () => {
       const flashcardPromises = newDocumentIds.map(async (documentId) => {
         try {
-          // Check if flashcard data is already available from automatic processing
           const documentContent = await apiService.getDocumentContent(documentId);
           
-          // If flashcards are ready and have data, use them directly
-          if (documentContent.flashcardStatus === 'READY' && documentContent.flashcardData) {
-            try {
-              const flashcardDataMap = documentContent.flashcardData.response || documentContent.flashcardData;
-              const flashcardsList = flashcardDataMap.flashcards || [];
+          // Simple status-based approach like SummaryTab
+          if (documentContent.flashcardStatus === 'PROCESSED' && documentContent.flashcardData) {
+            // Parse flashcard data
+              let flashcardsList = [];
+              
+              if (Array.isArray(documentContent.flashcardData)) {
+                flashcardsList = documentContent.flashcardData;
+              } else if (documentContent.flashcardData.response && Array.isArray(documentContent.flashcardData.response.flashcards)) {
+                flashcardsList = documentContent.flashcardData.response.flashcards;
+              } else if (documentContent.flashcardData.flashcards && Array.isArray(documentContent.flashcardData.flashcards)) {
+                flashcardsList = documentContent.flashcardData.flashcards;
+              }
               
               if (flashcardsList.length > 0) {
                 const flashcards = flashcardsList.map(fc => ({
@@ -78,70 +86,37 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
                   cardCount: flashcards.length,
                   source: documentContent.originalName || 'Unknown Document',
                   difficulty: flashcards.length > 10 ? 'Advanced' : 'Beginner',
-                  status: 'READY',
+                  status: 'PROCESSED',
                   error: undefined,
                   flashcards
                 };
               }
-            } catch (parseError) {
-              console.warn('Failed to parse existing flashcard data:', parseError);
-            }
           }
           
-          // Check if we should wait for automatic processing or make individual API call
-          const shouldWaitForAutoProcessing = 
-            documentContent.status === 'PROCESSING' || 
-            documentContent.summaryStatus === 'PROCESSING' ||
-            documentContent.quizStatus === 'PROCESSING' ||
-            documentContent.flashcardStatus === 'PROCESSING' ||
-            documentContent.summaryStatus === 'UPLOADED' || 
-            documentContent.flashcardStatus === 'UPLOADED';
-
-          if (shouldWaitForAutoProcessing) {
-            return {
-              id: documentId,
-              title: documentContent.originalName || 'Unknown Document',
-              description: 'Flashcards are being generated automatically...',
-              cardCount: 0,
-              source: documentContent.originalName || 'Unknown Document',
-              difficulty: 'Unknown',
-              status: 'PROCESSING',
-              error: 'Flashcards are being generated automatically...',
-              flashcards: []
-            };
+          // Return status based on flashcardStatus
+          let status: 'PROCESSING' | 'PENDING' | 'ERROR' | 'PROCESSED' = 'PENDING';
+          let errorMessage = undefined;
+          
+          if (documentContent.flashcardStatus === 'PROCESSING') {
+            status = 'PROCESSING';
+            errorMessage = 'AI is generating your flashcards...';
+          } else if (documentContent.flashcardStatus === 'ERROR') {
+            status = 'ERROR';
+            errorMessage = 'Failed to generate flashcards';
+          } else if (documentContent.flashcardStatus === 'UPLOADED') {
+            status = 'PENDING';
+            errorMessage = 'Waiting for flashcard generation to start...';
           }
           
-          // Only make individual API call if automatic processing failed
-          if (documentContent.flashcardStatus === 'ERROR') {
-            const res = await apiService.getFlashcardsForDocument(documentId);
-            
-            if (res.status === 'PROCESSING') {
-              pollFlashcardStatus(documentId);
-            }
-            
-            return {
-              id: documentId,
-              title: res.documentName || 'Unknown Document',
-              description: res.status === 'READY' ? `${res.flashcards.length} flashcards generated from your document` : 'Failed to generate flashcards',
-              cardCount: res.flashcards.length,
-              source: res.documentName || 'Unknown Document',
-              difficulty: res.flashcards.length > 10 ? 'Advanced' : 'Beginner',
-              status: res.status,
-              error: res.error,
-              flashcards: res.flashcards
-            };
-          }
-          
-          // Default: wait for automatic processing
           return {
             id: documentId,
             title: documentContent.originalName || 'Unknown Document',
-            description: 'Waiting for automatic flashcard generation...',
+            description: errorMessage || 'Processing...',
             cardCount: 0,
             source: documentContent.originalName || 'Unknown Document',
             difficulty: 'Unknown',
-            status: 'PROCESSING',
-            error: 'Waiting for automatic flashcard generation...',
+            status,
+            error: errorMessage,
             flashcards: []
           };
           
@@ -162,7 +137,6 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
       
       const results = await Promise.all(flashcardPromises);
       
-      // Mark as fetched and remove from processing
       newDocumentIds.forEach(id => {
         fetchedDocumentIds.current.add(id);
         processingDocumentIds.current.delete(id);
@@ -177,16 +151,77 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
           cardCount: result.cardCount,
           source: result.source,
           difficulty: result.difficulty,
-                      status: result.status as 'PROCESSING' | 'READY' | 'ERROR' | 'PENDING',
+          status: result.status as 'PROCESSING' | 'PROCESSED' | 'ERROR' | 'PENDING',
           error: result.error,
           flashcards: result.flashcards
         }));
-        return [...existingDecks, ...mappedResults];
+        const newDecks = [...existingDecks, ...mappedResults];
+        return newDecks;
       });
     };
     
     fetchFlashcards();
   }, [documentIds.join(",")]);  // Keep dependencies minimal to avoid infinite loops
+
+  // Poll for updates when there are documents being processed
+  useEffect(() => {
+    const documentsBeingProcessed = flashcardDecks.filter(d => d.status === 'PROCESSING' || d.status === 'PENDING');
+    
+    if (documentsBeingProcessed.length > 0) {
+      const interval = setInterval(() => {
+        // Re-fetch document content for processing documents
+        documentsBeingProcessed.forEach(async (deck) => {
+          try {
+            const documentContent = await apiService.getDocumentContent(deck.id);
+            if (documentContent.flashcardStatus === 'PROCESSED' && documentContent.flashcardData) {
+              // Update deck with new flashcard data
+              setFlashcardDecks(prevDecks => 
+                prevDecks.map(d => {
+                  if (d.id === deck.id) {
+                    // Parse flashcard data similar to the main fetch logic
+                    let flashcardsList = [];
+                    
+                    if (Array.isArray(documentContent.flashcardData)) {
+                      flashcardsList = documentContent.flashcardData;
+                    } else if (documentContent.flashcardData.response && Array.isArray(documentContent.flashcardData.response.flashcards)) {
+                      flashcardsList = documentContent.flashcardData.response.flashcards;
+                    } else if (documentContent.flashcardData.flashcards && Array.isArray(documentContent.flashcardData.flashcards)) {
+                      flashcardsList = documentContent.flashcardData.flashcards;
+                    }
+                    
+                    if (flashcardsList.length > 0) {
+                      const flashcards = flashcardsList.map(fc => ({
+                        question: fc.question || "",
+                        answer: fc.answer || "",
+                        difficulty: fc.difficulty || "medium"
+                      }));
+                      
+                      return {
+                        ...d,
+                        title: documentContent.originalName || 'Unknown Document',
+                        description: `${flashcards.length} flashcards generated from your document`,
+                        cardCount: flashcards.length,
+                        source: documentContent.originalName || 'Unknown Document',
+                        difficulty: flashcards.length > 10 ? 'Advanced' : 'Beginner',
+                        status: 'PROCESSED',
+                        error: undefined,
+                        flashcards
+                      };
+                    }
+                  }
+                  return d;
+                })
+              );
+            }
+          } catch (error) {
+            console.error('Error polling for flashcard updates:', error);
+          }
+        });
+      }, 3000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [flashcardDecks]);
 
   const pollFlashcardStatus = async (documentId: string) => {
     const maxAttempts = 30;
@@ -195,47 +230,34 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
     const poll = async () => {
       try {
         const res = await apiService.getFlashcardsForDocument(documentId);
+        attempts++;
         
-        if (res.status === 'READY' || res.status === 'ERROR') {
-          setFlashcardDecks(prevDecks => {
-            const updatedDecks = prevDecks.map(d => 
-              d.id === documentId ? {
-                ...d,
-                title: res.documentName || d.title,
-                description: res.status === 'READY' ? `${res.flashcards.length} flashcards generated from your document` : 'Failed to generate flashcards',
-                cardCount: res.flashcards.length,
-                source: res.documentName || d.source,
-                difficulty: res.flashcards.length > 10 ? 'Advanced' : 'Beginner',
-                status: res.status,
-                error: res.error,
-                flashcards: res.flashcards
-              } : d
-            );
-            return updatedDecks;
-          });
+        if (res.status === 'PROCESSED' || res.status === 'ERROR') {
+          setFlashcardDecks(prevDecks => 
+            prevDecks.map(deck => 
+              deck.id === documentId 
+                ? {
+                    ...deck,
+                    title: res.documentName || 'Unknown Document',
+                    description: res.status === 'PROCESSED' ? `${res.flashcards.length} flashcards generated from your document` : 'Failed to generate flashcards',
+                    cardCount: res.flashcards.length,
+                    source: res.documentName || 'Unknown Document',
+                    difficulty: res.flashcards.length > 10 ? 'Advanced' : 'Beginner',
+                    status: res.status,
+                    error: res.error,
+                    flashcards: res.flashcards
+                  }
+                : deck
+            )
+          );
           return;
         }
         
-        attempts++;
         if (attempts < maxAttempts) {
-          setTimeout(poll, 30000);
-        } else {
-          setFlashcardDecks(prevDecks => {
-            const updatedDecks = prevDecks.map(d => 
-              d.id === documentId ? {
-                ...d,
-                status: 'ERROR' as const,
-                error: 'Flashcard generation timed out. Please try again.'
-              } : d
-            );
-            return updatedDecks;
-          });
+          setTimeout(poll, 2000);
         }
       } catch (error) {
-        attempts++;
-        if (attempts < maxAttempts) {
-          setTimeout(poll, 30000);
-        }
+        console.error('Error polling flashcard status:', error);
       }
     };
     
@@ -263,13 +285,17 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
     setIsFlipped(false);
   };
 
-  const readyFlashcards = flashcardDecks.filter(deck => deck.status === 'READY' && deck.flashcards && deck.flashcards.length > 0);
-  const generatingFlashcards = flashcardDecks.filter(deck => deck.status === 'PROCESSING');
-  const failedFlashcards = flashcardDecks.filter(deck => deck.status === 'ERROR');
-  const pendingFlashcards = flashcardDecks.filter(deck => 
-    !deck.status || deck.status === 'PENDING' || 
-    (deck.status !== 'READY' && deck.status !== 'PROCESSING' && deck.status !== 'ERROR')
-  );
+  // Filter ready flashcards
+  const readyFlashcards = flashcardDecks.filter(deck => deck.status === 'PROCESSED' && deck.flashcards && deck.flashcards.length > 0);
+  
+  // Display processing documents
+  const processingDocuments = flashcardDecks.filter(deck => deck.status === 'PROCESSING');
+  
+  // Display pending documents
+  const pendingDocuments = flashcardDecks.filter(deck => deck.status === 'PENDING');
+  
+  // Display error documents
+  const errorDocuments = flashcardDecks.filter(deck => deck.status === 'ERROR');
 
   return (
     <>
@@ -453,67 +479,48 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
             </div>
           )}
 
-          {generatingFlashcards.length > 0 && (
+          {processingDocuments.length > 0 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Flashcard Decks Being Generated</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Flashcards Being Generated</h3>
               <div className="grid gap-6 md:grid-cols-2">
-                {generatingFlashcards.map((deck) => (
+                {processingDocuments.map((deck) => (
+                  <Card key={deck.id} className="border-blue-200 bg-blue-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{deck.title}</h4>
+                            <p className="text-sm text-blue-600">AI is actively generating your flashcards...</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-600">
+                          PROCESSING
+                        </span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+            </div>
+          )}
+
+          {pendingDocuments.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Pending Flashcard Decks</h3>
+              <div className="grid gap-6 md:grid-cols-2">
+                {pendingDocuments.map((deck) => (
                   <Card key={deck.id} className="border-yellow-200 bg-yellow-50">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <Loader2 className="h-5 w-5 text-yellow-600 animate-spin" />
-            <div>
-                            <h4 className="font-medium text-gray-900">{deck.title}</h4>
-                            <p className="text-sm text-gray-600">AI is generating your flashcards...</p>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {failedFlashcards.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Failed Flashcard Decks</h3>
-              <div className="grid gap-6 md:grid-cols-2">
-                {failedFlashcards.map((deck) => (
-                  <Card key={deck.id} className="border-red-200 bg-red-50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-            <div>
-                            <h4 className="font-medium text-gray-900">{deck.title}</h4>
-                            <p className="text-sm text-red-600">{deck.error || 'Failed to generate flashcards'}</p>
-                          </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {pendingFlashcards.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Pending Flashcard Decks</h3>
-              <div className="grid gap-6 md:grid-cols-2">
-                {pendingFlashcards.map((deck) => (
-                  <Card key={deck.id} className="border-gray-200 bg-gray-50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Loader2 className="h-5 w-5 text-gray-600 animate-spin" />
                           <div>
                             <h4 className="font-medium text-gray-900">{deck.title}</h4>
-                            <p className="text-sm text-gray-600">Flashcard generation hasn't started yet</p>
+                            <p className="text-sm text-yellow-600">Waiting for flashcard generation to start...</p>
                           </div>
                         </div>
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-600">
                           PENDING
                         </span>
                       </div>
@@ -524,7 +531,33 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
             </div>
           )}
 
-          {readyFlashcards.length === 0 && generatingFlashcards.length === 0 && failedFlashcards.length === 0 && pendingFlashcards.length === 0 && (
+          {errorDocuments.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Failed Flashcard Decks</h3>
+              <div className="grid gap-6 md:grid-cols-2">
+                {errorDocuments.map((deck) => (
+                  <Card key={deck.id} className="border-red-200 bg-red-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <XCircle className="h-5 w-5 text-red-600" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{deck.title}</h4>
+                            <p className="text-sm text-red-600">{deck.error || 'Failed to generate flashcards'}</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                          ERROR
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {readyFlashcards.length === 0 && processingDocuments.length === 0 && pendingDocuments.length === 0 && errorDocuments.length === 0 && (
             <Card className="text-center py-12">
               <CardContent>
                 <BookOpen className="h-16 w-16 text-gray-400 mx-auto mb-4" />

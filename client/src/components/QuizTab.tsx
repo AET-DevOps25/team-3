@@ -42,90 +42,74 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
 
   useEffect(() => {
     const newDocumentIds = documentIds.filter(id => !fetchedDocumentIds.current.has(id));
+    
     if (newDocumentIds.length === 0) return;
     
-    // First, add pending entries for new documents
+    // Immediately add pending entries for new documents to show loading state
     const pendingEntries = newDocumentIds.map(documentId => ({
       questions: [],
       documentName: 'Loading...',
       documentId,
       status: 'PENDING' as const,
-      error: undefined
+      error: 'Preparing quiz...'
     }));
     
-    setQuizzes(prevQuizzes => [...prevQuizzes, ...pendingEntries]);
+    setQuizzes(prevQuizzes => {
+      const existingQuizzes = prevQuizzes.filter(q => !newDocumentIds.includes(q.documentId));
+      const newQuizzes = [...existingQuizzes, ...pendingEntries];
+      return newQuizzes;
+    });
     
     const fetchQuizzes = async () => {
       const quizPromises = newDocumentIds.map(async (documentId) => {
         try {
-          // Check if quiz data is already available from automatic processing
           const documentContent = await apiService.getDocumentContent(documentId);
           
-          // If quiz is ready and has data, use it directly
-          if (documentContent.quizStatus === 'READY' && documentContent.quizData) {
-            try {
-              const quizDataMap = documentContent.quizData.response || documentContent.quizData;
-              const questionsList = quizDataMap.questions || [];
+          // Simple status-based approach like SummaryTab
+          if (documentContent.quizStatus === 'PROCESSED' && documentContent.quizData) {
+            // Parse quiz data
+              let questionsData = [];
               
-              if (questionsList.length > 0) {
-                const questions = questionsList.map(q => ({
-                  type: q.type || "",
-                  question: q.question || "",
-                  correctAnswer: q.correct_answer || q.correctAnswer || "",
-                  points: q.points || 0,
-                  options: q.options || null
-                }));
-                
+              if (Array.isArray(documentContent.quizData.questions)) {
+                questionsData = documentContent.quizData.questions;
+              } else if (documentContent.quizData.response && Array.isArray(documentContent.quizData.response.questions)) {
+                questionsData = documentContent.quizData.response.questions;
+              } else if (documentContent.quizData.questions && Array.isArray(documentContent.quizData.questions)) {
+                questionsData = documentContent.quizData.questions;
+              }
+              
+              if (questionsData.length > 0) {
                 return {
-                  questions,
-                  documentName: documentContent.originalName || 'Unknown Document',
+                questions: questionsData,
+                documentName: documentContent.originalName || 'Unknown Document',
                   documentId,
-                  status: 'READY',
+                  status: 'PROCESSED',
                   error: undefined
                 };
               }
-            } catch (parseError) {
-              console.warn('Failed to parse existing quiz data:', parseError);
-            }
           }
           
-          // Check if we should wait for automatic processing or make individual API call
-          const shouldWaitForAutoProcessing = 
-            documentContent.status === 'PROCESSING' || 
-            documentContent.summaryStatus === 'PROCESSING' ||
-            documentContent.quizStatus === 'PROCESSING' ||
-            documentContent.flashcardStatus === 'PROCESSING' ||
-            documentContent.summaryStatus === 'UPLOADED' || 
-            documentContent.quizStatus === 'UPLOADED';
-
-          if (shouldWaitForAutoProcessing) {
-            return {
-              questions: [],
-              documentName: documentContent.originalName || 'Unknown Document',
-              documentId,
-              status: 'PROCESSING',
-              error: 'Quiz is being generated automatically...'
-            };
+          // Return status based on quizStatus
+          let status: 'PROCESSING' | 'PENDING' | 'ERROR' = 'PENDING';
+          let errorMessage = undefined;
+          
+          if (documentContent.quizStatus === 'PROCESSING') {
+            status = 'PROCESSING';
+            errorMessage = 'AI is generating your quiz...';
+          } else if (documentContent.quizStatus === 'ERROR') {
+            status = 'ERROR';
+            errorMessage = 'Failed to generate quiz';
+          } else if (documentContent.quizStatus === 'UPLOADED') {
+            status = 'PENDING';
+            errorMessage = 'Waiting for quiz generation to start...';
           }
           
-          // Only make individual API call if automatic processing failed
-          if (documentContent.quizStatus === 'ERROR') {
-            const res = await apiService.getQuizForDocument(documentId);
-            
-            if (res.status === 'PROCESSING') {
-              pollQuizStatus(documentId);
-            }
-            
-            return res;
-          }
-          
-          // Default: wait for automatic processing
           return {
             questions: [],
             documentName: documentContent.originalName || 'Unknown Document',
             documentId,
-            status: 'PROCESSING',
-            error: 'Waiting for automatic quiz generation...'
+            status,
+            error: errorMessage
           };
           
         } catch (error) {
@@ -145,18 +129,69 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
       setQuizzes(prevQuizzes => {
         const existingQuizzes = prevQuizzes.filter(q => !newDocumentIds.includes(q.documentId));
         const mappedResults = results.map(result => ({
-          questions: result.questions || [],
-          documentName: result.documentName || 'Unknown Document',
           documentId: result.documentId,
-          status: result.status as 'PROCESSING' | 'READY' | 'ERROR' | 'PENDING',
+          documentName: result.documentName,
+          questions: result.questions,
+          status: result.status as 'PROCESSING' | 'PROCESSED' | 'ERROR' | 'PENDING',
           error: result.error
         }));
-        return [...existingQuizzes, ...mappedResults];
+        const newQuizzes = [...existingQuizzes, ...mappedResults];
+        return newQuizzes;
       });
     };
     
     fetchQuizzes();
   }, [documentIds.join(",")]);  // Removed 'quizzes' and 'setQuizzes' from dependencies
+
+  // Poll for updates when there are documents being processed
+  useEffect(() => {
+    const documentsBeingProcessed = quizzes.filter(q => q.status === 'PROCESSING' || q.status === 'PENDING');
+    
+    if (documentsBeingProcessed.length > 0) {
+      const interval = setInterval(() => {
+        // Re-fetch document content for processing documents
+        documentsBeingProcessed.forEach(async (quiz) => {
+          try {
+            const documentContent = await apiService.getDocumentContent(quiz.documentId);
+                         if (documentContent.quizStatus === 'PROCESSED' && documentContent.quizData) {
+              setQuizzes(prevQuizzes => 
+                prevQuizzes.map(q => {
+                  if (q.documentId === quiz.documentId) {
+                    // Parse quiz data
+                    let questionsData = [];
+                    
+                    if (Array.isArray(documentContent.quizData.questions)) {
+                      questionsData = documentContent.quizData.questions;
+                    } else if (documentContent.quizData.response && Array.isArray(documentContent.quizData.response.questions)) {
+                      questionsData = documentContent.quizData.response.questions;
+                    } else if (documentContent.quizData.questions && Array.isArray(documentContent.quizData.questions)) {
+                      questionsData = documentContent.quizData.questions;
+                    }
+                    
+                    if (questionsData.length > 0) {
+                      return {
+                        ...q,
+                        title: documentContent.originalName || 'Unknown Document',
+                        description: `${questionsData.length} questions generated from your document`,
+                        questions: questionsData,
+                        status: 'PROCESSED',
+                        error: undefined
+                      };
+                    }
+                  }
+                  return q;
+                })
+              );
+            }
+          } catch (error) {
+            console.error('Error polling quiz status:', error);
+          }
+        });
+      }, 15000); // Poll every 15 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [quizzes]);
 
   const pollQuizStatus = async (documentId: string) => {
     const maxAttempts = 30;
@@ -166,7 +201,7 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
       try {
         const res = await apiService.getQuizForDocument(documentId);
         
-        if (res.status === 'READY' || res.status === 'ERROR') {
+        if (res.status === 'PROCESSED' || res.status === 'ERROR') {
           setQuizzes(prevQuizzes => {
             const updatedQuizzes = prevQuizzes.map(q => 
               q.documentId === documentId ? res : q
@@ -248,13 +283,17 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
     return quiz.questions.length > 0 ? Math.round((correct / quiz.questions.length) * 100) : 0;
   };
 
-  const readyQuizzes = quizzes.filter(q => q.status === 'READY' && q.questions && q.questions.length > 0);
-  const generatingQuizzes = quizzes.filter(q => q.status === 'PROCESSING');
-  const failedQuizzes = quizzes.filter(q => q.status === 'ERROR');
-  const pendingQuizzes = quizzes.filter(q => 
-    !q.status || q.status === 'PENDING' || 
-    (q.status !== 'READY' && q.status !== 'PROCESSING' && q.status !== 'ERROR')
-  );
+  // Filter ready quizzes
+  const readyQuizzes = quizzes.filter(q => q.status === 'PROCESSED' && q.questions && q.questions.length > 0);
+  
+  // Display processing documents
+  const processingDocuments = quizzes.filter(q => q.status === 'PROCESSING');
+  
+  // Display pending documents
+  const pendingDocuments = quizzes.filter(q => q.status === 'PENDING');
+  
+  // Display error documents
+  const errorDocuments = quizzes.filter(q => q.status === 'ERROR');
 
   return (
     <>
@@ -514,11 +553,37 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
             </div>
           )}
 
-          {generatingQuizzes.length > 0 && (
+          {processingDocuments.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-900">Quizzes Being Generated</h3>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {generatingQuizzes.map((quiz) => (
+                {processingDocuments.map((quiz) => (
+                  <Card key={quiz.documentId} className="border-blue-200 bg-blue-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
+                            <p className="text-sm text-blue-600">AI is actively generating your quiz...</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-600">
+                          PROCESSING
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {pendingDocuments.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Pending Quizzes</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {pendingDocuments.map((quiz) => (
                   <Card key={quiz.documentId} className="border-yellow-200 bg-yellow-50">
                     <CardContent className="pt-6">
                       <div className="flex items-center justify-between">
@@ -526,55 +591,10 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
                           <Loader2 className="h-5 w-5 text-yellow-600 animate-spin" />
                           <div>
                             <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
-                            <p className="text-sm text-gray-600">AI is generating your quiz...</p>
+                            <p className="text-sm text-yellow-600">Waiting for quiz generation to start...</p>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {failedQuizzes.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Failed Quizzes</h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {failedQuizzes.map((quiz) => (
-                  <Card key={quiz.documentId} className="border-red-200 bg-red-50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div>
-                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
-                            <p className="text-sm text-red-600">{quiz.error || 'Failed to generate quiz'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {pendingQuizzes.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900">Pending Quizzes</h3>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {pendingQuizzes.map((quiz) => (
-                  <Card key={quiz.documentId} className="border-gray-200 bg-gray-50">
-                    <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <FileText className="h-5 w-5 text-gray-600" />
-                          <div>
-                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
-                            <p className="text-sm text-gray-600">Quiz generation hasn't started yet</p>
-                          </div>
-                        </div>
-                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-600">
                           PENDING
                         </span>
                       </div>
@@ -585,7 +605,33 @@ const QuizTab = ({ uploadedFiles, documentIds, quizzes, setQuizzes, answers, set
             </div>
           )}
 
-          {readyQuizzes.length === 0 && generatingQuizzes.length === 0 && failedQuizzes.length === 0 && pendingQuizzes.length === 0 && (
+          {errorDocuments.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900">Failed Quizzes</h3>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {errorDocuments.map((quiz) => (
+                  <Card key={quiz.documentId} className="border-red-200 bg-red-50">
+                    <CardContent className="pt-6">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <XCircle className="h-5 w-5 text-red-600" />
+                          <div>
+                            <h4 className="font-medium text-gray-900">{quiz.documentName}</h4>
+                            <p className="text-sm text-red-600">{quiz.error || 'Failed to generate quiz'}</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-600">
+                          ERROR
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {readyQuizzes.length === 0 && processingDocuments.length === 0 && pendingDocuments.length === 0 && errorDocuments.length === 0 && (
             <Card className="text-center py-12">
               <CardContent>
                 <Brain className="h-16 w-16 text-gray-400 mx-auto mb-4" />

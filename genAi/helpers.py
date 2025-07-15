@@ -23,7 +23,6 @@ def save_document(document_name: str, document_base64: str) -> str:
     with open(file_path, "wb") as file:
         file.write(document_bytes)
     
-    logging.info(f"Document {document_name} saved successfully at {file_path}")
     return file_path
 
 def delete_document(document_path: str):
