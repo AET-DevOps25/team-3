@@ -13,6 +13,10 @@ RUN npm install
 # Copy all files
 COPY . .
 
+# Set build-time environment variables
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+
 # Build the app
 RUN npm run build
 

@@ -35,6 +35,27 @@ spec:
                 name: {{ include "studymate.fullname" . }}-client
                 port:
                   number: {{ .Values.client.service.port }}
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-auth-service
+                port:
+                  number: {{ .Values.authService.service.port }}
+          - path: /api/documents
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-document-service
+                port:
+                  number: {{ .Values.documentService.service.port }}
+          - path: /api/genai
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-genai-service
+                port:
+                  number: {{ .Values.genaiService.service.port }}
           - path: /api
             pathType: Prefix
             backend:
@@ -42,7 +63,7 @@ spec:
                 name: {{ include "studymate.fullname" . }}-server
                 port:
                   number: {{ .Values.server.service.port }}
-          - path: /genai
+          - path: /genai-backend
             pathType: Prefix
             backend:
               service:

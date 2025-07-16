@@ -51,7 +51,7 @@ jobs:
 
       - name: Build and push client
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
+          docker build --platform linux/amd64 --build-arg VITE_API_BASE_URL=https://studymate-tum.xyz -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
           docker push ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA}
 
       - name: Build and push genai

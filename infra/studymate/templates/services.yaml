@@ -96,4 +96,64 @@ spec:
       name: http
   selector:
     {{- include "studymate.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: weaviate 
+    app.kubernetes.io/component: weaviate
+---
+# Auth Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-auth-service
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-service
+spec:
+  type: {{ .Values.authService.service.type }}
+  ports:
+    - port: {{ .Values.authService.service.port }}
+      targetPort: {{ .Values.authService.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: auth-service
+---
+# Document Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-document-service
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: document-service
+spec:
+  type: {{ .Values.documentService.service.type }}
+  ports:
+    - port: {{ .Values.documentService.service.port }}
+      targetPort: {{ .Values.documentService.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: document-service
+---
+# GenAI Microservice (Kotlin)
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-genai-service
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: genai-service
+spec:
+  type: {{ .Values.genaiService.service.type }}
+  ports:
+    - port: {{ .Values.genaiService.service.port }}
+      targetPort: {{ .Values.genaiService.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: genai-service 

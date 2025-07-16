@@ -1,5 +1,6 @@
 // API service for communicating with the microservices backend
-const API_BASE_URL = 'http://localhost';
+const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 
+  (typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
 
 // Common status type used throughout the application  
 // Aligned with backend DocumentStatus enum - backend uses PROCESSED as final ready state

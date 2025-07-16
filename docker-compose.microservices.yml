@@ -85,6 +85,8 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost
     restart: unless-stopped
     ports:
       - "3000:80"  # Direct access for development
