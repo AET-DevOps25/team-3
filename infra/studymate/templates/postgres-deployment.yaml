@@ -56,4 +56,5 @@ spec:
               memory: 256Mi
       volumes:
         - name: postgres-storage
-          emptyDir: {} 
+          persistentVolumeClaim:
+            claimName: {{ include "studymate.fullname" . }}-postgres-pvc 
