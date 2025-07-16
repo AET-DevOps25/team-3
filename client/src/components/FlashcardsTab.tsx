@@ -348,7 +348,7 @@ const FlashcardsTab = ({ uploadedFiles, documentIds }: FlashcardsTabProps) => {
             className="relative w-full max-w-2xl h-80 cursor-pointer"
             onClick={() => setIsFlipped(!isFlipped)}
           >
-            <div className={`absolute inset-0 w-full h-full transition-transform duration-600 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
+            <div className={`absolute inset-0 w-full h-full transition-transform duration-500 transform-style-preserve-3d ${isFlipped ? 'rotate-y-180' : ''}`}>
               <Card className="absolute inset-0 w-full h-full backface-hidden border-2 border-purple-200 shadow-lg hover:shadow-xl transition-shadow">
                 <CardContent className="h-full flex flex-col items-center justify-center p-8 text-center">
                   <div className="mb-4">
