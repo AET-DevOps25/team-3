@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "studymate.fullname" . }}-postgres-init
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+data:
+  init-databases.sql: |
+    -- Create databases for microservices
+    CREATE DATABASE IF NOT EXISTS auth_db;
+    CREATE DATABASE IF NOT EXISTS document_db;
+    
+    -- Grant permissions
+    GRANT ALL PRIVILEGES ON DATABASE auth_db TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE document_db TO postgres;
+    GRANT ALL PRIVILEGES ON DATABASE mydb TO postgres;
+    
+    -- Connect to each database and ensure proper setup
+    \c auth_db;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    
+    \c document_db;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    
+    \c mydb;
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; 

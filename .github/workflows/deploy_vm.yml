@@ -155,19 +155,27 @@ jobs:
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
+          OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          # Deploy using Helm - this will fail the job if deployment fails
+          # Generate database URL with the provided password
+          DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@studymate-postgres:5432/mydb"
+          
+          # Deploy using Helm with correct secret paths
           helm upgrade --install studymate ./infra/studymate \
             --namespace team-3 \
+            --create-namespace \
             --set global.teamid=team-3 \
             --set global.imageTag=latest \
-            --set secrets.postgresPassword="${POSTGRES_PASSWORD}" \
-            --set secrets.openaiApiKey="${OPENAI_API_KEY}" \
-            --set secrets.jwtSecret="${JWT_SECRET}" \
-            --set secrets.databaseUrl="${DATABASE_URL}" \
-            --wait --timeout=10m
+            --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
+            --set-string secrets.genai.data.apiKey="${OPENAI_API_KEY}" \
+            --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
+            --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
+            --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
+            --set-string secrets.server.data.jwtSecret="${JWT_SECRET}" \
+            --set-string secrets.server.data.databaseUrl="${DATABASE_URL}" \
+            --wait --timeout=15m
           
           echo "✅ Kubernetes deployment completed successfully!"
           echo "Your app should be available at: https://team-3.k8s.aet.cit.tum.de"
