@@ -162,7 +162,7 @@ jobs:
           DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@studymate-postgres:5432/mydb"
           
           # Deploy using Helm with correct secret paths
-          helm upgrade --install studymate ./infra/studymate \
+          helm upgrade --install studymate ./infra/helm \
             --namespace team-3 \
             --create-namespace \
             --set global.teamid=team-3 \
@@ -177,6 +177,6 @@ jobs:
             --wait --timeout=15m
           
           echo "✅ Kubernetes deployment completed successfully!"
-          echo "Your app should be available at: https://team-3.k8s.aet.cit.tum.de"
+          echo "Your app should be available at: https://studymate.student.k8s.aet.cit.tum.de"
 
   

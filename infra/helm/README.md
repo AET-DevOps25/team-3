@@ -1,6 +1,6 @@
 # StudyMate Kubernetes Deployment Guide
 
-This guide covers how to deploy and manage the StudyMate application on Kubernetes using Helm.
+This guide covers how to deploy and manage the StudyMate application on the TUM Student Rancher Kubernetes cluster using Helm.
 
 ## Table of Contents
 
@@ -16,16 +16,17 @@ This guide covers how to deploy and manage the StudyMate application on Kubernet
 
 ### Required Tools
 
-- **Kubernetes cluster** (1.19+)
+- **TUM Student Rancher Kubernetes cluster** access
 - **Helm** (3.0+)
-- **kubectl** configured with cluster access
+- **kubectl** configured with Rancher cluster access
 - **OpenSSL** (for generating secrets)
 
 ### Cluster Requirements
 
-- **Storage**: Default StorageClass configured
-- **Ingress**: Nginx Ingress Controller (optional)
-- **Cert-Manager**: For TLS certificates (optional)
+- **Storage**: Default StorageClass configured (provided by Rancher)
+- **Ingress**: Nginx Ingress Controller (provided by Rancher)
+- **Cert-Manager**: For TLS certificates (provided by Rancher)
+- **Domain**: `studymate.student.k8s.aet.cit.tum.de` (configured in Rancher)
 
 ### Verify Prerequisites
 
@@ -49,7 +50,7 @@ kubectl describe nodes
 
 ```bash
 git clone <repository-url>
-cd team-3/infra/studymate
+cd team-3
 ```
 
 ### 2. Create Namespace
@@ -84,9 +85,12 @@ echo "  Database URL: ${DATABASE_URL}"
 ### 4. Deploy Application
 
 ```bash
-helm install studymate . -n team-3 \
+# Deploy to Student Rancher cluster
+./deploy-k8s.sh --env dev --domain studymate.student.k8s.aet.cit.tum.de
+
+# Or manually with Helm
+helm install studymate ./infra/helm -n team-3 \
   --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
-  --set-string secrets.genai.data.apiKey="${OPENAI_API_KEY}" \
   --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
   --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
   --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}"
@@ -107,8 +111,11 @@ kubectl get pvc -n team-3
 
 ### 6. Access the Application
 
-Once deployed, you can access the StudyMate application services:
+Once deployed, you can access the StudyMate application:
 
+**🌐 Production URL**: https://studymate.student.k8s.aet.cit.tum.de
+
+**🔧 Development Access** (if needed):
 ```bash
 # Access the React frontend
 kubectl port-forward svc/studymate-client 8080:80 -n team-3 &
@@ -130,6 +137,8 @@ kubectl port-forward svc/studymate-postgres 5432:5432 -n team-3 &
 kubectl port-forward svc/studymate-weaviate 8083:8083 -n team-3 &
 # Weaviate available at http://localhost:8083
 ```
+
+**📊 Rancher Dashboard**: https://rancher.tum.de
 
 **Expected Service Status**:
 - **Client**: ✅ Running (React frontend)
