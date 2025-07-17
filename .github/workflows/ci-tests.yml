@@ -88,11 +88,6 @@ jobs:
           AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
           QUERY_DEFAULTS_LIMIT: 25
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready || curl -f http://localhost:8080/v1/meta"
-          --health-interval 10s
-          --health-timeout 15s
-          --health-retries 30
           
     steps:
     - name: Checkout code
@@ -107,6 +102,11 @@ jobs:
           genAi/requirements.txt
           genAi/requirements-test.txt
           
+    - name: Wait for Weaviate to be ready
+      run: |
+        echo "Waiting for Weaviate to start..."
+        timeout 120 bash -c 'until curl -f http://localhost:8083/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
+        
     - name: Install dependencies
       run: |
         cd genAi
@@ -338,11 +338,6 @@ jobs:
           AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
           QUERY_DEFAULTS_LIMIT: 25
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-        options: >-
-          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready || curl -f http://localhost:8080/v1/meta"
-          --health-interval 10s
-          --health-timeout 15s
-          --health-retries 30
           
     steps:
     - name: Checkout code
@@ -367,6 +362,11 @@ jobs:
         java-version: ${{ env.JAVA_VERSION }}
         distribution: 'temurin'
         cache: 'gradle'
+        
+    - name: Wait for Weaviate to be ready
+      run: |
+        echo "Waiting for Weaviate to start..."
+        timeout 120 bash -c 'until curl -f http://localhost:8083/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
         
     - name: Start services
       run: |

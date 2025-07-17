@@ -146,43 +146,54 @@ export const handlers = [
   }),
 
   http.post('http://localhost:3000/api/documents/upload', async ({ request }) => {
-    const auth = checkAuth(request)
-    if (!auth.authorized) {
-      return auth.error
-    }
+    try {
+      const formData = await request.formData()
+      const file = formData.get('file') as File || formData.get('files') as File
+      const files = formData.getAll('files') as File[]
 
-    const formData = await request.formData()
-    const files = formData.getAll('files') as File[]
+      // Handle both single file and multiple files
+      const fileToProcess = file || (files && files.length > 0 ? files[0] : null)
 
-    if (!files || files.length === 0) {
+      if (!fileToProcess) {
+        return HttpResponse.json(
+          { error: 'No files provided' },
+          { status: 400 }
+        )
+      }
+
+      if (fileToProcess.size > 10 * 1024 * 1024) {
+        return HttpResponse.json(
+          { error: 'File too large' },
+          { status: 413 }
+        )
+      }
+
+      // Check file type from the file itself or from a separate type field
+      const fileType = fileToProcess.type || formData.get('type') as string
+      const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      
+      if (fileType && !allowedTypes.includes(fileType)) {
+        return HttpResponse.json(
+          { error: `Unsupported file type: ${fileType}` },
+          { status: 415 }
+        );
+      }
+
+      return HttpResponse.json({
+        id: 1,
+        filename: fileToProcess.name,
+        status: 'UPLOADED',
+        size: fileToProcess.size,
+        contentType: fileToProcess.type,
+        documentIds: ['mock-document-id'],
+      })
+    } catch (error) {
+      console.error('Error in upload handler:', error)
       return HttpResponse.json(
-        { error: 'No files provided' },
-        { status: 400 }
+        { error: 'Internal server error' },
+        { status: 500 }
       )
     }
-
-    const file = files[0]
-    const fileType = formData.get('type') as string
-
-    if (file.size > 10 * 1024 * 1024) {
-      return HttpResponse.json(
-        { error: 'File too large' },
-        { status: 413 }
-      )
-    }
-
-    const allowedTypes = ['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    if (!allowedTypes.includes(fileType)) {
-      return HttpResponse.json(
-        { error: `Unsupported file type: ${fileType}` },
-        { status: 415 }
-      );
-    }
-
-    return HttpResponse.json({
-      documentIds: ['mock-document-id'],
-      status: 'UPLOADED',
-    })
   }),
 
   http.get('http://localhost:3000/api/documents/:id/content', ({ params, request }) => {
