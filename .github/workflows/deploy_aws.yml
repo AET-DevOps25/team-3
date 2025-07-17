@@ -1,8 +1,9 @@
-name: Deploy to EC2
+name: Deploy to AWS
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 
 jobs:
@@ -90,7 +91,7 @@ jobs:
           docker tag ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai:latest
           docker push ghcr.io/aet-devops25/team-3/genai:latest
 
-  deploy:
+  deploy-aws:
     needs: build-and-push
     runs-on: ubuntu-latest
     env:
@@ -124,59 +125,3 @@ jobs:
           GRAFANA_ADMIN_USERNAME: ${{ secrets.GRAFANA_ADMIN_USERNAME }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
         run: ansible-playbook -i inventory.ini ansible/deploy.yml
-
-  deploy-k8s:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    env:
-      COMMIT_SHA: ${{ github.sha }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup kubeconfig
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0'
-
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: 'v3.12.0'
-
-      - name: Deploy to Kubernetes
-        env:
-          POSTGRES_PASSWORD: blablabla
-          OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
-          OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
-          JWT_SECRET: blablabla
-        run: |
-          # Generate database URL with the provided password
-          DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@studymate-postgres:5432/mydb"
-          
-          # Deploy using Helm with correct secret paths
-          helm upgrade --install studymate ./infra/helm \
-            --namespace team-3 \
-            --create-namespace \
-            --set global.teamid=team-3 \
-            --set global.imageTag=latest \
-            --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
-            --set-string secrets.genai.data.apiKey="${OPENAI_API_KEY}" \
-            --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
-            --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
-            --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
-            --set-string secrets.server.data.jwtSecret="${JWT_SECRET}" \
-            --set-string secrets.server.data.databaseUrl="${DATABASE_URL}" \
-            --wait --timeout=15m
-          
-          echo "✅ Kubernetes deployment completed successfully!"
-          echo "Your app should be available at: https://studymate.student.k8s.aet.cit.tum.de"
-
-  
