@@ -17,71 +17,65 @@ class StudyLLM:
         model="llama3.3:latest",
         temperature=0.5,
         api_key=os.getenv("OPEN_WEBUI_API_KEY_CHAT"),
-        base_url="https://gpu.aet.cit.tum.de/api/"
+        base_url="https://gpu.aet.cit.tum.de/api/",
     )
-    
+
     # For summaries, quizzes, flashcards
     generation_llm = ChatOpenAI(
         model="llama3.3:latest",
         temperature=0.5,
         api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
-        base_url="https://gpu.aet.cit.tum.de/api/"
+        base_url="https://gpu.aet.cit.tum.de/api/",
     )
-    
+
     def __init__(self, doc_path: str):
-        base_system_template = ("You are an expert on the information in the context given below.\n"
-                                     "Use the context as your primary knowledge source. If you can't fulfill your task given the context, just say that.\n"
-                                    "context: {context}\n"
-                                    "Your task is {task}"
-                                    )
-        self.base_prompt_template = ChatPromptTemplate.from_messages([
-            ('system', base_system_template),
-            ('human', '{input}')
-        ])
-        try: 
+        base_system_template = (
+            "You are an expert on the information in the context given below.\n"
+            "Use the context as your primary knowledge source. If you can't fulfill your task given the context, just say that.\n"
+            "context: {context}\n"
+            "Your task is {task}"
+        )
+        self.base_prompt_template = ChatPromptTemplate.from_messages(
+            [("system", base_system_template), ("human", "{input}")]
+        )
+        try:
             self.rag_helper = RAGHelper(doc_path)
         except Exception as e:
             raise ValueError(f"Error initializing RAGHelper: {e}")
 
-    
     async def prompt(self, prompt: str) -> str:
         """
         Call the LLM with a given prompt.
-        
+
         Args:
             prompt (str): The input prompt for the LLM.
-        
+
         Returns:
             str: The response from the LLM.
         """
-        task =  (
+        task = (
             "To answer questions based on your context."
             "If you're asked a question that does not relate to your context, do not answer it - instead, answer by saying you're only familiar with <the topic in your context>.\n"
-            )
-        
+        )
+
         context = self.rag_helper.retrieve(prompt, top_k=5)
         chain = self.base_prompt_template | self.chat_llm
-        response = await chain.ainvoke({
-            'context': context,
-            'task':task,
-            'input':prompt
-            })
-        
+        response = await chain.ainvoke(
+            {"context": context, "task": task, "input": prompt}
+        )
+
         return response.content
 
     async def summarize(self):
         """
         Summarize the given document using the LLM.
-        
+
         Returns:
             str: The summary of the document.
         """
-        
+
         map_prompt = PromptTemplate.from_template(
-            (
-            f"Write a medium length summary of the following:\n\n"
-            "{text}"
-            )
+            (f"Write a medium length summary of the following:\n\n" "{text}")
         )
 
         combine_prompt = PromptTemplate.from_template(
@@ -99,35 +93,37 @@ class StudyLLM:
             self.generation_llm,
             chain_type="map_reduce",
             map_prompt=map_prompt,
-            combine_prompt=combine_prompt
+            combine_prompt=combine_prompt,
         )
 
-        result = await chain.ainvoke({"input_documents": self.rag_helper.summary_chunks})
-        
+        result = await chain.ainvoke(
+            {"input_documents": self.rag_helper.summary_chunks}
+        )
+
         return result["output_text"]
-        
+
     async def generate_flashcards(self):
         """
         Generate flashcards from the document using the LLM.
-        
+
         Returns:
             list: A list of flashcard objects.
         """
         flashcard_chain = FlashcardChain(self.generation_llm)
         cards = await flashcard_chain.invoke(self.rag_helper.summary_chunks)
         return cards
-    
+
     async def generate_quiz(self):
         """
         Generate a quiz from the document using the LLM.
-        
+
         Returns:
             list: A quiz object.
         """
         quiz_chain = QuizChain(self.generation_llm)
         quiz = await quiz_chain.invoke(self.rag_helper.summary_chunks)
         return quiz
-    
+
     def cleanup(self):
         """
         Cleanup resources used by the LLM.

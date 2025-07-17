@@ -3,7 +3,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from helpers import save_document
-from request_models import CreateSessionRequest, PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest, ProcessRequest
+from request_models import (
+    CreateSessionRequest,
+    PromptRequest,
+    SummaryRequest,
+    QuizRequest,
+    FlashcardRequest,
+    ProcessRequest,
+)
 from llm import StudyLLM
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -14,12 +21,14 @@ logger = logging.getLogger(__name__)
 
 llm_instances: dict[str, StudyLLM] = {}
 
+
 @asynccontextmanager
 async def lifespan(_):
     yield
     # Shutdown: cleanup
     for llm in llm_instances.values():
         llm.cleanup()
+
 
 app = FastAPI(
     title="tutor",
@@ -38,18 +47,19 @@ app = FastAPI(
         },
         {"name": "Ingestion", "description": "Endpoints to start ingestion processes."},
     ],
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 Instrumentator(
-    excluded_handlers=['/metrics'],
+    excluded_handlers=["/metrics"],
     should_group_status_codes=False,
-    should_instrument_requests_inprogress=True
-    ).instrument(app).expose(app)
+    should_instrument_requests_inprogress=True,
+).instrument(app).expose(app)
 
 
 # llm_instances["dummy"] = StudyLLM("./documents/example/W07_Microservices_and_Scalable_Architectures.pdf") # TODO: remove
 # llm_instances["dummy2"] = StudyLLM("./documents/example/dummy_knowledge.txt") # TODO: remove
+
 
 # Auxiliary Endpoints
 @app.get("/health")
@@ -71,8 +81,10 @@ async def load_session(data: CreateSessionRequest):
         if data.session_id in llm_instances:
             logger.info(f"Session {data.session_id} already exists")
             return {"message": "Session already loaded."}
-        
-        logger.info(f"Creating new session {data.session_id} for document {data.document_name}")
+
+        logger.info(
+            f"Creating new session {data.session_id} for document {data.document_name}"
+        )
         doc_name = f"{data.session_id}_{data.document_name}"
         path = save_document(doc_name, data.document_base64)
         llm_instances[data.session_id] = StudyLLM(path)
@@ -93,8 +105,10 @@ async def receive_prompt(data: PromptRequest):
         if data.session_id not in llm_instances:
             error_msg = f"Session {data.session_id} not found. Please ensure the document was processed successfully."
             logger.error(error_msg)
-            return JSONResponse(status_code=404, content={"response": f"ERROR: {error_msg}"})
-        
+            return JSONResponse(
+                status_code=404, content={"response": f"ERROR: {error_msg}"}
+            )
+
         logger.info(f"Processing chat request for session {data.session_id}")
         response = await llm_instances[data.session_id].prompt(data.message)
         return {"response": response}
@@ -102,6 +116,7 @@ async def receive_prompt(data: PromptRequest):
         error_msg = f"Chat error for session {data.session_id}: {str(e)}"
         logger.error(error_msg)
         return {"response": f"ERROR: {error_msg}"}
+
 
 @app.post("/summary")
 async def generate_summary(data: SummaryRequest):
@@ -113,7 +128,7 @@ async def generate_summary(data: SummaryRequest):
             error_msg = f"Session {data.session_id} not found. Please ensure the document was processed successfully."
             logger.error(error_msg)
             return {"response": f"ERROR: {error_msg}"}
-        
+
         logger.info(f"Generating summary for session {data.session_id}")
         response = await llm_instances[data.session_id].summarize()
         return {"response": response}
@@ -121,6 +136,7 @@ async def generate_summary(data: SummaryRequest):
         error_msg = f"Summary generation error for session {data.session_id}: {str(e)}"
         logger.error(error_msg)
         return {"response": f"ERROR: {error_msg}"}
+
 
 @app.post("/flashcard")
 async def generate_flashcards(data: FlashcardRequest):
@@ -132,15 +148,18 @@ async def generate_flashcards(data: FlashcardRequest):
             error_msg = f"Session {data.session_id} not found. Please ensure the document was processed successfully."
             logger.error(error_msg)
             return {"response": {"flashcards": [], "error": error_msg}}
-        
+
         logger.info(f"Generating flashcards for session {data.session_id}")
         response = await llm_instances[data.session_id].generate_flashcards()
         logger.info(f"Flashcards generated successfully for session {data.session_id}")
         return {"response": response}
     except Exception as e:
-        error_msg = f"Flashcard generation error for session {data.session_id}: {str(e)}"
+        error_msg = (
+            f"Flashcard generation error for session {data.session_id}: {str(e)}"
+        )
         logger.error(error_msg)
         return {"response": {"flashcards": [], "error": error_msg}}
+
 
 @app.post("/quiz")
 async def generate_quiz(data: QuizRequest):
@@ -152,7 +171,7 @@ async def generate_quiz(data: QuizRequest):
             error_msg = f"Session {data.session_id} not found. Please ensure the document was processed successfully."
             logger.error(error_msg)
             return {"response": {"questions": [], "error": error_msg}}
-        
+
         logger.info(f"Generating quiz for session {data.session_id}")
         response = await llm_instances[data.session_id].generate_quiz()
         logger.info(f"Quiz generated successfully for session {data.session_id}")
@@ -161,6 +180,7 @@ async def generate_quiz(data: QuizRequest):
         error_msg = f"Quiz generation error for session {data.session_id}: {str(e)}"
         logger.error(error_msg)
         return {"response": {"questions": [], "error": error_msg}}
+
 
 @app.post("/process")
 async def process_document(data: ProcessRequest):
@@ -179,7 +199,7 @@ async def process_document(data: ProcessRequest):
             "requestId": session_id,
             "status": "QUEUED",
             "message": "Document queued for processing",
-            "estimatedTime": None
+            "estimatedTime": None,
         }
     except Exception as e:
         logger.error(f"/process error: {str(e)}")
@@ -187,5 +207,5 @@ async def process_document(data: ProcessRequest):
             "requestId": None,
             "status": "FAILED",
             "message": f"Failed to process document: {str(e)}",
-            "estimatedTime": None
+            "estimatedTime": None,
         }
