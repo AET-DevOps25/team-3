@@ -77,6 +77,7 @@ CHART_PATH="./infra/helm"
 ENVIRONMENT="dev"
 DOMAIN="studymate.student.k8s.aet.cit.tum.de"
 DRY_RUN=false
+IMAGE_TAG="latest"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -88,6 +89,10 @@ while [[ $# -gt 0 ]]; do
             DOMAIN="$2"
             shift 2
             ;;
+        --image-tag)
+            IMAGE_TAG="$2"
+            shift 2
+            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -97,6 +102,7 @@ while [[ $# -gt 0 ]]; do
             echo "Options:"
             echo "  --env ENV        Environment (local/dev/prod) [default: local]"
             echo "  --domain DOMAIN  Domain name [default: studymate.local]"
+            echo "  --image-tag TAG  Docker image tag [default: latest]"
             echo "  --dry-run        Perform a dry run without applying changes"
             echo "  --help           Show this help message"
             exit 0
@@ -294,6 +300,11 @@ if [ "$RELEASE_EXISTS" = true ]; then
         --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
         --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
         --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
+        --set-string authService.image.tag="$IMAGE_TAG" \
+        --set-string documentService.image.tag="$IMAGE_TAG" \
+        --set-string genaiService.image.tag="$IMAGE_TAG" \
+        --set-string client.image.tag="$IMAGE_TAG" \
+        --set-string genAi.image.tag="$IMAGE_TAG" \
         --wait \
         --timeout=10m || {
         print_warning "Helm upgrade failed, trying install instead..."
@@ -304,6 +315,11 @@ if [ "$RELEASE_EXISTS" = true ]; then
             --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
             --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
+            --set-string authService.image.tag="$IMAGE_TAG" \
+            --set-string documentService.image.tag="$IMAGE_TAG" \
+            --set-string genaiService.image.tag="$IMAGE_TAG" \
+            --set-string client.image.tag="$IMAGE_TAG" \
+            --set-string genAi.image.tag="$IMAGE_TAG" \
             --wait \
             --timeout=10m
     }
@@ -329,6 +345,11 @@ else
         --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
         --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
         --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
+        --set-string authService.image.tag="$IMAGE_TAG" \
+        --set-string documentService.image.tag="$IMAGE_TAG" \
+        --set-string genaiService.image.tag="$IMAGE_TAG" \
+        --set-string client.image.tag="$IMAGE_TAG" \
+        --set-string genAi.image.tag="$IMAGE_TAG" \
         --force \
         --timeout=10m; then
         print_success "Helm installation with --force completed successfully"
@@ -341,9 +362,14 @@ else
         helm template "$RELEASE_NAME" "$CHART_PATH" \
             -f "$VALUES_FILE" \
             --namespace "$NAMESPACE" \
-            --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
-            --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
-            --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" > "$TEMPLATE_FILE"
+                    --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
+        --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
+        --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
+        --set-string authService.image.tag="$IMAGE_TAG" \
+        --set-string documentService.image.tag="$IMAGE_TAG" \
+        --set-string genaiService.image.tag="$IMAGE_TAG" \
+        --set-string client.image.tag="$IMAGE_TAG" \
+        --set-string genAi.image.tag="$IMAGE_TAG" > "$TEMPLATE_FILE"
         
         print_status "Applying templates manually..."
         if kubectl apply -f "$TEMPLATE_FILE" --namespace "$NAMESPACE" 2>/dev/null; then
