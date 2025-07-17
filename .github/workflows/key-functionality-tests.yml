@@ -9,7 +9,15 @@ on:
     # Run key functionality tests every 6 hours
     - cron: '0 */6 * * *'
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 env:
+  COMMIT_SHA: ${{ github.sha }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_ACTOR: ${{ github.actor }}
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.9'
   JAVA_VERSION: '17'

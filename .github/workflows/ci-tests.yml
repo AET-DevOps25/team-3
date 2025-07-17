@@ -1,15 +1,23 @@
 name: CI Test Suite
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches-ignore: [main]
   schedule:
     # Run tests daily at 2 AM UTC
     - cron: '0 2 * * *'
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 env:
+  COMMIT_SHA: ${{ github.sha }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_ACTOR: ${{ github.actor }}
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.9'
   JAVA_VERSION: '17'

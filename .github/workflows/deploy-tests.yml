@@ -17,7 +17,15 @@ on:
         - staging
         - production
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 env:
+  COMMIT_SHA: ${{ github.sha }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  GITHUB_ACTOR: ${{ github.actor }}
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
