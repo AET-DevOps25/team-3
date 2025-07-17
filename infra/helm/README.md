@@ -1,6 +1,6 @@
 # StudyMate Kubernetes Deployment Guide
 
-This guide covers how to deploy and manage the StudyMate application on Kubernetes using Helm.
+This guide covers how to deploy and manage the StudyMate application on the TUM Student Rancher Kubernetes cluster using Helm.
 
 ## Table of Contents
 
@@ -16,16 +16,17 @@ This guide covers how to deploy and manage the StudyMate application on Kubernet
 
 ### Required Tools
 
-- **Kubernetes cluster** (1.19+)
+- **TUM Student Rancher Kubernetes cluster** access
 - **Helm** (3.0+)
-- **kubectl** configured with cluster access
+- **kubectl** configured with Rancher cluster access
 - **OpenSSL** (for generating secrets)
 
 ### Cluster Requirements
 
-- **Storage**: Default StorageClass configured
-- **Ingress**: Nginx Ingress Controller (optional)
-- **Cert-Manager**: For TLS certificates (optional)
+- **Storage**: Default StorageClass configured (provided by Rancher)
+- **Ingress**: Nginx Ingress Controller (provided by Rancher)
+- **Cert-Manager**: For TLS certificates (provided by Rancher)
+- **Domain**: `studymate.student.k8s.aet.cit.tum.de` (configured in Rancher)
 
 ### Verify Prerequisites
 
@@ -49,13 +50,13 @@ kubectl describe nodes
 
 ```bash
 git clone <repository-url>
-cd team-3/infra/studymate
+cd studymate
 ```
 
 ### 2. Create Namespace
 
 ```bash
-kubectl create namespace team-3
+kubectl create namespace studymate
 ```
 
 ### 3. Generate Secure Secrets
@@ -84,9 +85,12 @@ echo "  Database URL: ${DATABASE_URL}"
 ### 4. Deploy Application
 
 ```bash
-helm install studymate . -n team-3 \
+# Deploy to Student Rancher cluster
+./deploy-k8s.sh --env dev --domain studymate.student.k8s.aet.cit.tum.de
+
+# Or manually with Helm
+helm install studymate ./infra/helm -n studymate \
   --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
-  --set-string secrets.genai.data.apiKey="${OPENAI_API_KEY}" \
   --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
   --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
   --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}"
@@ -96,40 +100,45 @@ helm install studymate . -n team-3 \
 
 ```bash
 # Check pod status
-kubectl get pods -n team-3
+kubectl get pods -n studymate
 
 # Check services
-kubectl get svc -n team-3
+kubectl get svc -n studymate
 
 # Check persistent volumes
-kubectl get pvc -n team-3
+kubectl get pvc -n studymate
 ```
 
 ### 6. Access the Application
 
-Once deployed, you can access the StudyMate application services:
+Once deployed, you can access the StudyMate application:
 
+**🌐 Production URL**: https://studymate.student.k8s.aet.cit.tum.de
+
+**🔧 Development Access** (if needed):
 ```bash
 # Access the React frontend
-kubectl port-forward svc/studymate-client 8080:80 -n team-3 &
+kubectl port-forward svc/studymate-client 8080:80 -n studymate &
 # Open http://localhost:8080 in your browser
 
 # Access the Auth Service API
-kubectl port-forward svc/studymate-auth-service 8086:8086 -n team-3 &
+kubectl port-forward svc/studymate-auth-service 8086:8086 -n studymate &
 # Auth API available at http://localhost:8086
 
 # Access the GenAI service
-kubectl port-forward svc/studymate-genai 8081:8081 -n team-3 &
+kubectl port-forward svc/studymate-genai 8081:8081 -n studymate &
 # Service available at http://localhost:8081
 
 # Access PostgreSQL database
-kubectl port-forward svc/studymate-postgres 5432:5432 -n team-3 &
+kubectl port-forward svc/studymate-postgres 5432:5432 -n studymate &
 # Database available at localhost:5432
 
 # Access Weaviate vector database
-kubectl port-forward svc/studymate-weaviate 8083:8083 -n team-3 &
+kubectl port-forward svc/studymate-weaviate 8083:8083 -n studymate &
 # Weaviate available at http://localhost:8083
 ```
+
+**📊 Rancher Dashboard**: https://rancher.tum.de
 
 **Expected Service Status**:
 - **Client**: ✅ Running (React frontend)
@@ -206,7 +215,7 @@ weaviate:
 
 ```bash
 # Deploy with custom resource limits
-helm install studymate . -n team-3 \
+helm install studymate . -n studymate \
   --set postgres.persistence.size=20Gi \
   --set weaviate.persistence.size=50Gi \
   --set-string secrets.postgres.data.password="..." \
@@ -219,7 +228,7 @@ helm install studymate . -n team-3 \
 
 ```bash
 # Minimal resources for development
-helm install studymate . -n team-3 \
+helm install studymate . -n studymate \
   --set postgres.persistence.size=2Gi \
   --set weaviate.persistence.size=5Gi \
   --set-string secrets.postgres.data.password="dev-password" \
@@ -234,7 +243,7 @@ helm install studymate . -n team-3 \
 
 ```bash
 # Production deployment with external secrets
-helm install studymate . -n team-3 \
+helm install studymate . -n studymate \
   --set postgres.persistence.size=100Gi \
   --set weaviate.persistence.size=200Gi \
   --set postgres.persistence.storageClass="fast-ssd" \
@@ -251,20 +260,20 @@ helm install studymate . -n team-3 \
 kubectl create secret generic prod-postgres-secret \
   --from-literal=username=postgres \
   --from-literal=password="$(openssl rand -base64 32)" \
-  -n team-3
+  -n studymate
 
 kubectl create secret generic prod-genai-secret \
   --from-literal=api-key="sk-your-openai-key" \
   --from-literal=open-webui-api-key-chat="sk-your-chat-key" \
   --from-literal=open-webui-api-key-gen="sk-your-gen-key" \
-  -n team-3
+  -n studymate
 
 kubectl create secret generic prod-auth-secret \
   --from-literal=jwt-secret="$(openssl rand -base64 64)" \
-  -n team-3
+  -n studymate
 
 # Deploy using external secrets
-helm install studymate . -n team-3 \
+helm install studymate . -n studymate \
   --set secrets.postgres.existingSecret="prod-postgres-secret" \
   --set secrets.genai.existingSecret="prod-genai-secret" \
   --set secrets.auth.existingSecret="prod-auth-secret"
@@ -276,26 +285,26 @@ helm install studymate . -n team-3 \
 
 ```bash
 # Check pod status
-kubectl get pods -n team-3
+kubectl get pods -n studymate
 
 # Check pod logs
-kubectl logs -l app.kubernetes.io/component=postgres -n team-3
-kubectl logs -l app.kubernetes.io/component=genai -n team-3
-kubectl logs -l app.kubernetes.io/component=server -n team-3
+kubectl logs -l app.kubernetes.io/component=postgres -n studymate
+kubectl logs -l app.kubernetes.io/component=genai -n studymate
+kubectl logs -l app.kubernetes.io/component=server -n studymate
 
 # Check service connectivity
-kubectl get svc -n team-3
+kubectl get svc -n studymate
 ```
 
 ### Data Persistence Verification
 
 ```bash
 # Check persistent volumes
-kubectl get pvc -n team-3
+kubectl get pvc -n studymate
 kubectl get pv
 
 # Test data persistence
-kubectl exec -it deployment/studymate-postgres -n team-3 -- \
+kubectl exec -it deployment/studymate-postgres -n studymate -- \
   psql -U postgres -d mydb -c "SELECT version();"
 ```
 
@@ -307,7 +316,7 @@ kubectl exec -it deployment/studymate-postgres -n team-3 -- \
 
 **Solution**: Ensure all required secrets are provided
 ```bash
-helm install studymate . -n team-3 \
+helm install studymate . -n studymate \
   --set-string secrets.postgres.data.password="your-password" \
   # ... other required secrets
 ```
@@ -319,7 +328,7 @@ helm install studymate . -n team-3 \
 **Solution**: Check storage class availability
 ```bash
 kubectl get storageclass
-kubectl describe pvc studymate-postgres-pvc -n team-3
+kubectl describe pvc studymate-postgres-pvc -n studymate
 ```
 
 #### 3. Pod Startup Issues
@@ -328,8 +337,8 @@ kubectl describe pvc studymate-postgres-pvc -n team-3
 
 **Solution**: Check pod logs and resource limits
 ```bash
-kubectl logs deployment/studymate-postgres -n team-3
-kubectl describe pod -l app.kubernetes.io/component=postgres -n team-3
+kubectl logs deployment/studymate-postgres -n studymate
+kubectl describe pod -l app.kubernetes.io/component=postgres -n studymate
 ```
 
 #### 4. Weaviate Port Configuration
@@ -354,10 +363,10 @@ weaviate:
 **Verification**:
 ```bash
 # Check Weaviate pod is running
-kubectl get pods -l app.kubernetes.io/component=weaviate -n team-3
+kubectl get pods -l app.kubernetes.io/component=weaviate -n studymate
 
 # Test connectivity from within cluster
-kubectl run test-weaviate --image=curlimages/curl:latest --rm -i --restart=Never -n team-3 -- \
+kubectl run test-weaviate --image=curlimages/curl:latest --rm -i --restart=Never -n studymate -- \
   curl -s http://studymate-weaviate:8083/v1/.well-known/ready
 ```
 
@@ -417,10 +426,10 @@ readinessProbe:
 **Verification**:
 ```bash
 # Check auth service startup progress  
-kubectl logs -f deployment/studymate-auth-service -n team-3
+kubectl logs -f deployment/studymate-auth-service -n studymate
 
 # Test auth API (should return HTTP 401 - secured endpoint)
-kubectl port-forward svc/studymate-auth-service 8086:8086 -n team-3 &
+kubectl port-forward svc/studymate-auth-service 8086:8086 -n studymate &
 curl -I http://localhost:8086
 ```
 
@@ -429,12 +438,12 @@ curl -I http://localhost:8086
 **Issue**: Microservice startup may take 2-3 minutes
 - **Cause**: Spring Boot initialization, database migration, and JPA setup
 - **Status**: ✅ **Resolved** - Optimized configuration and probe timeouts
-- **Monitoring**: Use `kubectl logs -f deployment/studymate-auth-service -n team-3` to monitor startup
+- **Monitoring**: Use `kubectl logs -f deployment/studymate-auth-service -n studymate` to monitor startup
 
 **Issue**: Container image pull delays
 - **Cause**: Images pulled from GitHub Container Registry (ghcr.io)
 - **Status**: ✅ **Normal behavior** - Images cached after first pull
-- **Monitoring**: Check `kubectl get events -n team-3` for pull progress
+- **Monitoring**: Check `kubectl get events -n studymate` for pull progress
 
 **Issue**: Weaviate port configuration
 - **Cause**: Container serves on port 8080 but application expects 8083
@@ -445,16 +454,16 @@ curl -I http://localhost:8086
 
 ```bash
 # Get all resources
-kubectl get all -n team-3
+kubectl get all -n studymate
 
 # Check events
-kubectl get events -n team-3 --sort-by=.metadata.creationTimestamp
+kubectl get events -n studymate --sort-by=.metadata.creationTimestamp
 
 # Check resource usage
-kubectl top pods -n team-3
+kubectl top pods -n studymate
 
 # Port forward for local access
-kubectl port-forward svc/studymate-client 8080:80 -n team-3
+kubectl port-forward svc/studymate-client 8080:80 -n studymate
 ```
 
 ## Advanced Usage
@@ -463,23 +472,23 @@ kubectl port-forward svc/studymate-client 8080:80 -n team-3
 
 ```bash
 # Upgrade with new values
-helm upgrade studymate . -n team-3 \
+helm upgrade studymate . -n studymate \
   --set postgres.persistence.size=16Gi \
   --reuse-values
 
 # Check rollout status
-kubectl rollout status deployment/studymate-postgres -n team-3
+kubectl rollout status deployment/studymate-postgres -n studymate
 ```
 
 ### Backup and Recovery
 
 ```bash
 # Create database backup
-kubectl exec deployment/studymate-postgres -n team-3 -- \
+kubectl exec deployment/studymate-postgres -n studymate -- \
   pg_dump -U postgres -d mydb > backup.sql
 
 # Restore from backup
-kubectl exec -i deployment/studymate-postgres -n team-3 -- \
+kubectl exec -i deployment/studymate-postgres -n studymate -- \
   psql -U postgres -d mydb < backup.sql
 ```
 
@@ -487,7 +496,7 @@ kubectl exec -i deployment/studymate-postgres -n team-3 -- \
 
 ```bash
 # Scale specific services
-helm upgrade studymate . -n team-3 \
+helm upgrade studymate . -n studymate \
   --set server.replicaCount=3 \
   --set genAi.replicaCount=2 \
   --reuse-values
@@ -526,28 +535,28 @@ secrets:
 
 Deploy with custom values:
 ```bash
-helm install studymate . -n team-3 -f custom-values.yaml
+helm install studymate . -n studymate -f custom-values.yaml
 ```
 
 ## Uninstalling
 
 ```bash
 # Remove deployment (keeps PVCs)
-helm uninstall studymate -n team-3
+helm uninstall studymate -n studymate
 
 # Remove persistent data (WARNING: This deletes all data!)
-kubectl delete pvc -l app.kubernetes.io/instance=studymate -n team-3
+kubectl delete pvc -l app.kubernetes.io/instance=studymate -n studymate
 
 # Remove namespace
-kubectl delete namespace team-3
+kubectl delete namespace studymate
 ```
 
 ## Support
 
 For issues and questions:
 1. Check the [Troubleshooting](#monitoring--troubleshooting) section
-2. Review pod logs: `kubectl logs -l app.kubernetes.io/name=studymate -n team-3`
-3. Check cluster resources: `kubectl get events -n team-3`
+2. Review pod logs: `kubectl logs -l app.kubernetes.io/name=studymate -n studymate`
+3. Check cluster resources: `kubectl get events -n studymate`
 
 ---
 

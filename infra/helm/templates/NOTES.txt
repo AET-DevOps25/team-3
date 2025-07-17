@@ -24,11 +24,11 @@
 2. Secret Management:
    IMPORTANT: Secrets must be provided during installation. Use:
    
-   helm install studymate ./infra/studymate -n {{ .Values.teamid }} \
+   helm install studymate ./infra/helm -n {{ .Values.teamid }} \
      --set-string secrets.postgres.data.password=<strong-password> \
-     --set-string secrets.genai.data.apiKey=<openai-api-key> \
-     --set-string secrets.server.data.jwtSecret=<jwt-secret> \
-     --set-string secrets.server.data.databaseUrl=<database-url>
+     --set-string secrets.genai.data.openWebUiApiKeyChat=<openwebui-chat-key> \
+     --set-string secrets.genai.data.openWebUiApiKeyGen=<openwebui-gen-key> \
+     --set-string secrets.auth.data.jwtSecret=<jwt-secret>
 
 3. Generate secure secrets:
    # PostgreSQL password (32 characters)
@@ -41,7 +41,7 @@
    postgresql://postgres:<password>@{{ include "studymate.fullname" . }}-postgres:5432/mydb
 
 4. Using existing secrets:
-   helm install studymate ./infra/studymate -n {{ .Values.teamid }} \
+   helm install studymate ./infra/helm -n {{ .Values.teamid }} \
      --set secrets.postgres.existingSecret=my-postgres-secret \
      --set secrets.genai.existingSecret=my-genai-secret \
-     --set secrets.server.existingSecret=my-server-secret
+     --set secrets.auth.existingSecret=my-auth-secret

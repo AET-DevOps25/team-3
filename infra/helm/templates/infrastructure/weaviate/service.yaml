@@ -13,6 +13,10 @@ spec:
       targetPort: {{ .Values.weaviate.service.targetPort }}
       protocol: TCP
       name: http
+    - port: {{ .Values.weaviate.service.grpcPort }}
+      targetPort: {{ .Values.weaviate.service.grpcPort }}
+      protocol: TCP
+      name: grpc
   selector:
     {{- include "studymate.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: weaviate 

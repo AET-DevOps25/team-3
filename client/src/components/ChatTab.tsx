@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageSquare, Send, Bot, User, Sparkles, FileText, Clock } from 'lucide-react';
 import { apiService, ChatMessage, ChatSessionResponse } from '@/lib/api';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatTabProps {
   uploadedFiles: File[];
@@ -205,7 +206,9 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
                           : 'bg-gray-100 text-gray-900'
                       }`}
                     >
-                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      <div className="text-sm leading-relaxed">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
                     </div>
 
                     {/* Sources and Timestamp */}

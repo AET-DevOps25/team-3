@@ -6,10 +6,10 @@ metadata:
   namespace: {{ .Values.teamid }}
   labels:
     {{- include "studymate.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
   annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
@@ -55,7 +55,7 @@ spec:
               service:
                 name: {{ include "studymate.fullname" . }}-genai-service
                 port:
-                                      number: {{ .Values.genaiService.service.port }}
+                  number: {{ .Values.genaiService.service.port }}
           - path: /genai-backend
             pathType: Prefix
             backend:

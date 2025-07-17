@@ -196,10 +196,10 @@ Error: secret "postgres-secret" not found
 ### Validation Commands
 ```bash
 # Check if secrets exist in Kubernetes
-kubectl get secrets -n team-3
+kubectl get secrets -n studymate
 
 # View secret metadata (not values)
-kubectl describe secret postgres-secret -n team-3
+kubectl describe secret postgres-secret -n studymate
 
 # Test deployment with dry-run
 ./deploy-k8s.sh --dry-run --env local

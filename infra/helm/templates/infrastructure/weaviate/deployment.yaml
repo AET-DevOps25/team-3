@@ -26,6 +26,9 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+            - name: grpc
+              containerPort: 50051
+              protocol: TCP
           env:
             {{- toYaml .Values.weaviate.env | nindent 12 }}
           volumeMounts:
@@ -52,5 +55,4 @@ spec:
               memory: 512Mi
       volumes:
         - name: weaviate-storage
-          persistentVolumeClaim:
-            claimName: {{ include "studymate.fullname" . }}-weaviate-pvc 
+          emptyDir: {} 

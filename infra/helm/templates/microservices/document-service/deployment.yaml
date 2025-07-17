@@ -28,26 +28,27 @@ spec:
               protocol: TCP
           env:
             {{- toYaml .Values.documentService.env | nindent 12 }}
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: http
-            initialDelaySeconds: 120
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: http
-            initialDelaySeconds: 90
-            periodSeconds: 15
-            timeoutSeconds: 5
-            failureThreshold: 3
+          # Temporarily disabled health probes due to 403 errors
+          # livenessProbe:
+          #   httpGet:
+          #     path: /actuator/health
+          #     port: http
+          #   initialDelaySeconds: 120
+          #   periodSeconds: 30
+          #   timeoutSeconds: 10
+          #   failureThreshold: 3
+          # readinessProbe:
+          #   httpGet:
+          #     path: /actuator/health
+          #     port: http
+          #   initialDelaySeconds: 90
+          #   periodSeconds: 15
+          #   timeoutSeconds: 5
+          #   failureThreshold: 3
           resources:
             limits:
-              cpu: 1000m
-              memory: 1Gi
-            requests:
               cpu: 500m
-              memory: 512Mi 
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi 

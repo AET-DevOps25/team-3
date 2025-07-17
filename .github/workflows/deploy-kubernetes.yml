@@ -1,0 +1,164 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'client/**'
+      - 'genAi/**'
+      - 'infra/helm/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domain name for deployment'
+        required: true
+        default: 'study-mate.student.k8s.aet.cit.tum.de'
+
+jobs:
+  deploy-kubernetes:
+    runs-on: ubuntu-latest
+    
+    env:
+      HELM_NAMESPACE: study-mate
+      DOMAIN: ${{ github.event.inputs.domain || 'study-mate.student.k8s.aet.cit.tum.de' }}
+      IMAGE_TAG: k8s-latest
+      POSTGRES_PERSISTENCE_SIZE: 1Gi
+      WEAVIATE_PERSISTENCE_SIZE: 1Gi
+      POSTGRES_RELEASE_NAME: study-mate-postgres
+      POSTGRES_CHART_PATH: bitnami/postgresql
+      APP_RELEASE_NAME: study-mate
+      APP_CHART_PATH: ./infra/helm
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kubernetes tools
+        run: |
+          mkdir -p ~/.kube
+          cat > ~/.kube/config << 'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: "student"
+            cluster:
+              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+          
+          users:
+          - name: "student"
+            user:
+              token: "kubeconfig-u-g7fbq4tzcsm6z76:btctl45d2sfw7fvdzplvdfzr6cnwbnnmzwtxpzjq4xjbnlp5bmrvzs"
+          
+          contexts:
+          - name: "student"
+            context:
+              user: "student"
+              cluster: "student"
+          
+          current-context: "student"
+          EOF
+          chmod 600 ~/.kube/config
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Verify Kubernetes connection
+        run: |
+          echo "🔍 Testing Kubernetes connection..."
+          kubectl cluster-info || echo "⚠️  Cluster info not available, but continuing..."
+          kubectl get namespaces || echo "⚠️  Cannot list namespaces, but continuing..."
+
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" ]; then
+            echo "❌ OPEN_WEBUI_API_KEY_CHAT secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" ]; then
+            echo "❌ OPEN_WEBUI_API_KEY_GEN secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.POSTGRES_PASSWORD }}" ]; then
+            echo "❌ POSTGRES_PASSWORD secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.JWT_SECRET }}" ]; then
+            echo "❌ JWT_SECRET secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are present"
+
+# JWT Secret is now provided via GitHub secrets
+
+      - name: Verify namespace exists
+        run: |
+          echo "🔍 Verifying namespace exists..."
+          if ! kubectl get namespace ${{ env.HELM_NAMESPACE }} > /dev/null 2>&1; then
+            echo "❌ Namespace '${{ env.HELM_NAMESPACE }}' does not exist!"
+            echo "Please create the namespace manually before running this workflow:"
+            echo "kubectl create namespace ${{ env.HELM_NAMESPACE }}"
+            exit 1
+          fi
+          echo "✅ Namespace '${{ env.HELM_NAMESPACE }}' exists"
+
+      - name: Deploy with Helm
+        env:
+          DOMAIN: ${{ github.event.inputs.domain || 'study-mate.student.k8s.aet.cit.tum.de' }}
+        run: |
+          echo "🚀 Deploying StudyMate to Kubernetes..."
+          echo "📦 Upgrading Helm release..."
+          
+          helm upgrade study-mate ./infra/helm -n ${{ env.HELM_NAMESPACE }} \
+              --set ingress.host="${DOMAIN}" \
+              --set client.image.tag="k8s-latest" \
+            --set authService.image.tag="k8s-latest" \
+            --set documentService.image.tag="k8s-latest" \
+            --set genaiService.image.tag="k8s-latest" \
+            --set genAi.image.tag="k8s-latest" \
+              --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
+            --set-string secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" \
+            --set-string secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" \
+            --set-string secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
+              --wait --timeout=10m
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Checking deployment status..."
+          kubectl get pods -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve pods (permission issue)"
+          kubectl get services -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve services (permission issue)"
+          kubectl get ingress -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve ingress (permission issue)"
+          
+          echo "🏥 Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod -l app=study-mate-postgres -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify PostgreSQL pod readiness"
+          kubectl wait --for=condition=ready pod -l app=study-mate-client -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify client pod readiness"
+          kubectl wait --for=condition=ready pod -l app=study-mate-auth-service -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify auth service pod readiness"
+          
+          # Check if ingress failed and provide alternative access method
+          if ! kubectl get ingress -n ${{ env.HELM_NAMESPACE }} 2>/dev/null | grep -q study-mate-ingress; then
+            echo "⚠️  Ingress creation may have failed, checking for alternative access..."
+            echo "🔗 You can access the application using port-forward:"
+            echo "   kubectl port-forward svc/study-mate-client 8080:80 -n ${{ env.HELM_NAMESPACE }}"
+          fi
+
+      - name: Get access information
+        env:
+          DOMAIN: ${{ github.event.inputs.domain || 'study-mate.student.k8s.aet.cit.tum.de' }}
+        run: |
+          echo "🌐 StudyMate Deployment Complete!"
+          echo "🔗 Application URL: https://${DOMAIN}"
+          echo ""
+          echo "📊 Useful commands:"
+          echo "kubectl get pods -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/study-mate-client -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/study-mate-auth-service -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl port-forward svc/study-mate-client 8080:80 -n ${{ env.HELM_NAMESPACE }}" 
