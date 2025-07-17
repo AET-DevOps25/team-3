@@ -30,7 +30,27 @@ jobs:
       - name: Setup kubeconfig
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          cat > ~/.kube/config << 'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: "student"
+            cluster:
+              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+          
+          users:
+          - name: "student"
+            user:
+              token: "kubeconfig-u-g7fbq4tzcsm6z76:btctl45d2sfw7fvdzplvdfzr6cnwbnnmzwtxpzjq4xjbnlp5bmrvzs"
+          
+          contexts:
+          - name: "student"
+            context:
+              user: "student"
+              cluster: "student"
+          
+          current-context: "student"
+          EOF
           chmod 600 ~/.kube/config
 
       - name: Install kubectl
@@ -45,10 +65,6 @@ jobs:
 
       - name: Validate secrets
         run: |
-          if [ -z "${{ secrets.KUBECONFIG }}" ]; then
-            echo "❌ KUBECONFIG secret is not set"
-            exit 1
-          fi
           if [ -z "${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" ]; then
             echo "❌ OPEN_WEBUI_API_KEY_CHAT secret is not set"
             exit 1
