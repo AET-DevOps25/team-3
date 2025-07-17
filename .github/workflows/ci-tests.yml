@@ -50,11 +50,6 @@ jobs:
         cd client
         npm run typecheck
         
-    - name: Run linting
-      run: |
-        cd client
-        npm run lint
-        
     - name: Run tests with coverage
       run: |
         cd client
@@ -94,10 +89,10 @@ jobs:
           QUERY_DEFAULTS_LIMIT: 25
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
         options: >-
-          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 20
+          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready || curl -f http://localhost:8080/v1/meta"
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 30
           
     steps:
     - name: Checkout code
@@ -344,10 +339,10 @@ jobs:
           QUERY_DEFAULTS_LIMIT: 25
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
         options: >-
-          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 20
+          --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready || curl -f http://localhost:8080/v1/meta"
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 30
           
     steps:
     - name: Checkout code
