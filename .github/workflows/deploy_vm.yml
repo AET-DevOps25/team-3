@@ -153,11 +153,10 @@ jobs:
 
       - name: Deploy to Kubernetes
         env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          POSTGRES_PASSWORD: blablabla
           OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_SECRET: blablabla
         run: |
           # Generate database URL with the provided password
           DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@studymate-postgres:5432/mydb"

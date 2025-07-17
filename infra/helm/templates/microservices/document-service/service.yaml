@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "studymate.fullname" . }}-document-service
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: document-service
+spec:
+  type: {{ .Values.documentService.service.type }}
+  ports:
+    - port: {{ .Values.documentService.service.port }}
+      targetPort: {{ .Values.documentService.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "studymate.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: document-service 
