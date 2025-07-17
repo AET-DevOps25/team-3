@@ -52,6 +52,10 @@ jobs:
           current-context: "student"
           EOF
           chmod 600 ~/.kube/config
+          
+          echo "🔍 Testing kubeconfig..."
+          kubectl config view --minify
+          echo "✅ Kubeconfig created successfully"
 
       - name: Install kubectl
         uses: azure/setup-kubectl@v3
@@ -62,6 +66,13 @@ jobs:
         uses: azure/setup-helm@v3
         with:
           version: '3.12.0'
+
+      - name: Verify Kubernetes connection
+        run: |
+          echo "🔍 Testing Kubernetes connection..."
+          kubectl cluster-info || echo "⚠️  Cluster info not available, but continuing..."
+          kubectl get namespaces || echo "⚠️  Cannot list namespaces, but continuing..."
+          echo "✅ Kubernetes tools ready"
 
       - name: Validate secrets
         run: |

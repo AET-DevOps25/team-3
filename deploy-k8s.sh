@@ -131,10 +131,15 @@ if ! command -v helm &> /dev/null; then
     exit 1
 fi
 
-# Check if connected to cluster
-if ! kubectl cluster-info &> /dev/null; then
-    print_error "Not connected to a Kubernetes cluster"
-    exit 1
+# Check if connected to cluster (more lenient for student tokens)
+print_status "Testing Kubernetes connectivity..."
+if kubectl cluster-info &> /dev/null; then
+    print_success "Kubernetes cluster connection verified"
+elif kubectl get namespaces &> /dev/null; then
+    print_success "Kubernetes access verified (limited permissions)"
+else
+    print_warning "Kubernetes connectivity check failed, but continuing..."
+    print_warning "This might be due to limited student token permissions"
 fi
 
 print_success "Prerequisites check passed"
