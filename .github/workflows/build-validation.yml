@@ -35,22 +35,22 @@ jobs:
 
       - name: Build auth-service (validation only)
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./microservices/auth-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./server/auth-service
           echo "✅ Auth Service build successful"
 
       - name: Build document-service (validation only)
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./microservices/document-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./server/document-service
           echo "✅ Document Service build successful"
 
       - name: Build genai-service (validation only)
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./microservices/genai-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./server/genai-service
           echo "✅ GenAI Service build successful"
 
       - name: Build eureka-server (validation only)
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./microservices/eureka-server
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./server/eureka-server
           echo "✅ Eureka Server build successful"
 
       - name: Build client (validation only)

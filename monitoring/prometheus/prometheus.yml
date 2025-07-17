@@ -2,11 +2,35 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-# Prod jobs
+  # Microservices monitoring
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:8083']
+    metrics_path: /actuator/prometheus
+
+  - job_name: 'document-service'
+    static_configs:
+      - targets: ['document-service:8084']
+    metrics_path: /actuator/prometheus
+
+  - job_name: 'genai-service'
+    static_configs:
+      - targets: ['genai-service:8085']
+    metrics_path: /actuator/prometheus
+
   - job_name: 'genai'
     static_configs:
       - targets: ['genai:8081']
 
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+
+  - job_name: 'weaviate'
+    static_configs:
+      - targets: ['weaviate:8087']
+
+  # Legacy/fallback jobs
   - job_name: 'server'
     static_configs:
       - targets: ['server:8082']

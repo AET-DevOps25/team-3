@@ -31,22 +31,22 @@ jobs:
     # Build and Push Microservices (using multi-stage Docker builds)
       - name: Build and push auth-service
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./microservices/auth-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./server/auth-service
           docker push ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA}
 
       - name: Build and push document-service
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./microservices/document-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./server/document-service
           docker push ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA}
 
       - name: Build and push genai-service
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./microservices/genai-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./server/genai-service
           docker push ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA}
 
       - name: Build and push eureka-server
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./microservices/eureka-server
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./server/eureka-server
           docker push ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA}
 
       - name: Build and push client
@@ -153,11 +153,10 @@ jobs:
 
       - name: Deploy to Kubernetes
         env:
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          POSTGRES_PASSWORD: blablabla
           OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_SECRET: blablabla
         run: |
           # Generate database URL with the provided password
           DATABASE_URL="postgresql://postgres:${POSTGRES_PASSWORD}@studymate-postgres:5432/mydb"
