@@ -48,7 +48,7 @@ print_status "Building microservices..."
 
 # Build Auth Service
 print_status "Building Auth Service..."
-cd microservices/auth-service
+cd server/auth-service
 if [ -f "gradlew" ]; then
     ./gradlew build -x test
 else
@@ -58,7 +58,7 @@ cd ../..
 
 # Build Document Service
 print_status "Building Document Service..."
-cd microservices/document-service
+cd server/document-service
 if [ -f "gradlew" ]; then
     ./gradlew build -x test
 else
@@ -68,7 +68,7 @@ cd ../..
 
 # Build GenAI Service
 print_status "Building GenAI Service..."
-cd microservices/genai-service
+cd server/genai-service
 if [ -f "gradlew" ]; then
     ./gradlew build -x test
 else
@@ -78,7 +78,7 @@ cd ../..
 
 # Build Eureka Server
 print_status "Building Eureka Server..."
-cd microservices/eureka-server
+cd server/eureka-server
 if [ -f "gradlew" ]; then
     ./gradlew build -x test
 else

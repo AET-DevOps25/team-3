@@ -31,22 +31,22 @@ jobs:
     # Build and Push Microservices (using multi-stage Docker builds)
       - name: Build and push auth-service
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./microservices/auth-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./server/auth-service
           docker push ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA}
 
       - name: Build and push document-service
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./microservices/document-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./server/document-service
           docker push ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA}
 
       - name: Build and push genai-service
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./microservices/genai-service
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./server/genai-service
           docker push ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA}
 
       - name: Build and push eureka-server
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./microservices/eureka-server
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./server/eureka-server
           docker push ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA}
 
       - name: Build and push client

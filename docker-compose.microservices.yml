@@ -18,7 +18,7 @@ services:
 
   auth-service:
     build:
-      context: ./microservices/auth-service
+      context: ./server/auth-service
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -40,7 +40,7 @@ services:
 
   document-service:
     build:
-      context: ./microservices/document-service
+      context: ./server/document-service
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
@@ -62,7 +62,7 @@ services:
 
   genai-service:
     build:
-      context: ./microservices/genai-service
+      context: ./server/genai-service
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
