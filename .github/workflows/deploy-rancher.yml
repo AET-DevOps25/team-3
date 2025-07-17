@@ -92,8 +92,18 @@ jobs:
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
         run: |
-          # Create namespace if it doesn't exist
-          kubectl create namespace team-3 --dry-run=client -o yaml | kubectl apply -f -
+          # Check if namespace exists and clean up if needed
+          if kubectl get namespace team-3 &> /dev/null; then
+            echo "⚠️  Namespace team-3 already exists"
+            # Check if it's managed by Helm
+            if kubectl get namespace team-3 -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' | grep -q "Helm"; then
+              echo "✅ Namespace is managed by Helm, proceeding..."
+            else
+              echo "🗑️  Deleting existing namespace to recreate with Helm..."
+              kubectl delete namespace team-3 --ignore-not-found=true
+              sleep 10  # Wait for deletion to complete
+            fi
+          fi
           
           chmod +x ./deploy-k8s.sh
           ./deploy-k8s.sh \

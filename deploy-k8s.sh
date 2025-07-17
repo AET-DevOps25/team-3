@@ -263,6 +263,23 @@ fi
 # Apply the deployment
 print_status "Deploying to Kubernetes..."
 
+# Check if namespace exists
+if kubectl get namespace "$NAMESPACE" &> /dev/null; then
+    print_status "Namespace $NAMESPACE exists"
+    # Check if it's managed by Helm
+    if kubectl get namespace "$NAMESPACE" -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' 2>/dev/null | grep -q "Helm"; then
+        print_success "Namespace is managed by Helm"
+        CREATE_NAMESPACE=""
+    else
+        print_warning "Namespace exists but is not managed by Helm"
+        print_warning "This might cause issues. Consider deleting the namespace first."
+        CREATE_NAMESPACE=""
+    fi
+else
+    print_status "Namespace $NAMESPACE does not exist, will create it"
+    CREATE_NAMESPACE="--create-namespace"
+fi
+
 # Check if release exists
 if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
     print_status "Upgrading existing release..."
@@ -279,7 +296,7 @@ else
     helm install "$RELEASE_NAME" "$CHART_PATH" \
         -f "$VALUES_FILE" \
         --namespace "$NAMESPACE" \
-        --create-namespace \
+        $CREATE_NAMESPACE \
         --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
         --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
         --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
