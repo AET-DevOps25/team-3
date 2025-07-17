@@ -95,9 +95,9 @@ jobs:
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
         options: >-
           --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 20
           
     steps:
     - name: Checkout code
@@ -199,7 +199,7 @@ jobs:
     - name: Generate test report
       run: |
         cd microservices/auth-service
-        ./gradlew testReport
+        ./gradlew jacocoTestReport
         
     - name: Archive test results
       uses: actions/upload-artifact@v4
@@ -258,7 +258,7 @@ jobs:
     - name: Generate test report
       run: |
         cd microservices/document-service
-        ./gradlew testReport
+        ./gradlew jacocoTestReport
         
     - name: Archive test results
       uses: actions/upload-artifact@v4
@@ -317,7 +317,7 @@ jobs:
     - name: Generate test report
       run: |
         cd microservices/genai-service
-        ./gradlew testReport
+        ./gradlew jacocoTestReport
         
     - name: Archive test results
       uses: actions/upload-artifact@v4
@@ -360,9 +360,9 @@ jobs:
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
         options: >-
           --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 20
           
     steps:
     - name: Checkout code

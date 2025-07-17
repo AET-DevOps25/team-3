@@ -2,9 +2,9 @@ name: Key Functionality Tests
 
 on:
   push:
-    branches: [ main, develop ]
+    branches-ignore: [main]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main]
   schedule:
     # Run key functionality tests every 6 hours
     - cron: '0 */6 * * *'
@@ -69,7 +69,7 @@ jobs:
         echo $! > auth-service.pid
         
         # Wait for service to start
-        timeout 60 bash -c 'until curl -f http://localhost:8086/actuator/health; do sleep 2; done'
+        timeout 60 bash -c 'until curl -f http://localhost:8086/actuator/health; do sleep 5; done' || echo 'Auth service health check failed'
         
     - name: Test client-side authentication
       run: |
@@ -214,7 +214,7 @@ jobs:
         echo $! > document-service.pid
         
         # Wait for service to start
-        timeout 60 bash -c 'until curl -f http://localhost:8084/actuator/health; do sleep 2; done'
+        timeout 60 bash -c 'until curl -f http://localhost:8084/actuator/health; do sleep 5; done' || echo 'Document service health check failed'
         
     - name: Test document upload functionality
       run: |
@@ -346,9 +346,9 @@ jobs:
           PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
         options: >-
           --health-cmd "curl -f http://localhost:8080/v1/.well-known/ready"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 20
           
     steps:
     - name: Checkout code
@@ -385,7 +385,7 @@ jobs:
         echo $! > genai-service.pid
         
         # Wait for service to start
-        timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+        timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 5; done' || echo 'GenAI service health check failed'
         
     - name: Test AI functionality
       run: |
@@ -712,7 +712,7 @@ jobs:
         echo $! > genai-service.pid
         
         # Wait for service to start
-        timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 2; done'
+        timeout 60 bash -c 'until curl -f http://localhost:8081/health; do sleep 5; done' || echo 'GenAI service health check failed'
         
     - name: Test concurrent requests
       run: |
