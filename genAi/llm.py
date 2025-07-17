@@ -132,4 +132,7 @@ class StudyLLM:
         """
         Cleanup resources used by the LLM.
         """
-        self.rag_helper.cleanup()
+        try:
+            self.rag_helper.cleanup()
+        except Exception as e:
+            print(f"Error during RAGHelper cleanup: {e}")

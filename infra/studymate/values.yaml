@@ -17,7 +17,7 @@ authService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/auth_db"
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/auth_db"
     - name: SPRING_DATASOURCE_USERNAME
       valueFrom:
         secretKeyRef:
@@ -53,7 +53,7 @@ documentService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/document_db"
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/document_db"
     - name: SPRING_DATASOURCE_USERNAME
       valueFrom:
         secretKeyRef:
@@ -125,7 +125,7 @@ server:
           name: server-secret
           key: database-url
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/mydb"
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/mydb"
     - name: SPRING_DATASOURCE_USERNAME
       valueFrom:
         secretKeyRef:

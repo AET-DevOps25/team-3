@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from helpers import save_document
-from request_models import CreateSessionRequest, PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest
+from request_models import CreateSessionRequest, PromptRequest, SummaryRequest, QuizRequest, FlashcardRequest, ProcessRequest
 from llm import StudyLLM
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -163,7 +163,7 @@ async def generate_quiz(data: QuizRequest):
         return {"response": {"questions": [], "error": error_msg}}
 
 @app.post("/process")
-async def process_document(data: SummaryRequest):
+async def process_document(data: ProcessRequest):
     """Compatibility endpoint for Kotlin genai-service (/process).
     It creates a session (if not present) and immediately returns QUEUED.
     (Actual processing e.g. summary generation can be triggered asynchronously.)"""
