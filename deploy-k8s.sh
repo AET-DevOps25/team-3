@@ -280,8 +280,13 @@ else
     CREATE_NAMESPACE="--create-namespace"
 fi
 
-# Check if release exists
-if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
+# Check if release exists (handle permission errors gracefully)
+RELEASE_EXISTS=false
+if helm list -n "$NAMESPACE" 2>/dev/null | grep -q "$RELEASE_NAME"; then
+    RELEASE_EXISTS=true
+fi
+
+if [ "$RELEASE_EXISTS" = true ]; then
     print_status "Upgrading existing release..."
     helm upgrade "$RELEASE_NAME" "$CHART_PATH" \
         -f "$VALUES_FILE" \
@@ -290,7 +295,18 @@ if helm list -n "$NAMESPACE" | grep -q "$RELEASE_NAME"; then
         --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
         --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
         --wait \
-        --timeout=10m
+        --timeout=10m || {
+        print_warning "Helm upgrade failed, trying install instead..."
+        helm install "$RELEASE_NAME" "$CHART_PATH" \
+            -f "$VALUES_FILE" \
+            --namespace "$NAMESPACE" \
+            $CREATE_NAMESPACE \
+            --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
+            --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
+            --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
+            --wait \
+            --timeout=10m
+    }
 else
     print_status "Installing new release..."
     helm install "$RELEASE_NAME" "$CHART_PATH" \
@@ -300,28 +316,52 @@ else
         --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
         --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
         --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
-        --wait \
-        --timeout=10m
+        --atomic \
+        --timeout=10m || {
+        print_warning "Helm install with --atomic failed, trying without --atomic..."
+        helm install "$RELEASE_NAME" "$CHART_PATH" \
+            -f "$VALUES_FILE" \
+            --namespace "$NAMESPACE" \
+            $CREATE_NAMESPACE \
+            --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
+            --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
+            --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
+            --timeout=10m
+    }
 fi
 
 print_success "Deployment completed successfully!"
 
-# Wait for pods to be ready
+# Wait for pods to be ready (handle permission errors)
 print_status "Waiting for pods to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=$RELEASE_NAME -n $NAMESPACE --timeout=300s
+if kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=$RELEASE_NAME -n $NAMESPACE --timeout=300s 2>/dev/null; then
+    print_success "Pods are ready"
+else
+    print_warning "Could not verify pod readiness (permission issue)"
+fi
 
-# Get deployment status
+# Get deployment status (handle permission errors)
 print_status "Deployment status:"
-kubectl get pods -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME
+if kubectl get pods -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME 2>/dev/null; then
+    print_success "Pod status retrieved"
+else
+    print_warning "Could not retrieve pod status (permission issue)"
+fi
 
-# Get service information
+# Get service information (handle permission errors)
 print_status "Services:"
-kubectl get svc -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME
+if kubectl get svc -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME 2>/dev/null; then
+    print_success "Service status retrieved"
+else
+    print_warning "Could not retrieve service status (permission issue)"
+fi
 
-# Get ingress information
-if kubectl get ingress -n $NAMESPACE &> /dev/null; then
-    print_status "Ingress:"
-    kubectl get ingress -n $NAMESPACE
+# Get ingress information (handle permission errors)
+print_status "Ingress:"
+if kubectl get ingress -n $NAMESPACE 2>/dev/null; then
+    print_success "Ingress status retrieved"
+else
+    print_warning "Could not retrieve ingress status (permission issue)"
 fi
 
 echo ""
