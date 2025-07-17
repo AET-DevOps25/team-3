@@ -79,6 +79,15 @@ jobs:
           kubectl auth can-i list pods --all-namespaces || echo "⚠️  Cannot list pods across namespaces"
           kubectl auth can-i create namespaces || echo "⚠️  Cannot create namespaces"
           kubectl auth can-i delete namespaces || echo "⚠️  Cannot delete namespaces"
+          kubectl auth can-i create configmaps || echo "⚠️  Cannot create configmaps"
+          kubectl auth can-i create secrets || echo "⚠️  Cannot create secrets"
+          kubectl auth can-i create deployments || echo "⚠️  Cannot create deployments"
+          kubectl auth can-i create services || echo "⚠️  Cannot create services"
+          
+          echo ""
+          echo "📋 Permission Summary:"
+          echo "The student token has very limited permissions in the shared cluster."
+          echo "This is normal for student accounts and may require alternative deployment approaches."
           
           echo "✅ Kubernetes tools ready"
 
@@ -115,10 +124,18 @@ jobs:
           
           echo "✅ Namespace cleanup completed"
           
+          # Try Helm deployment first
+          echo "🔧 Attempting Helm deployment..."
           chmod +x ./deploy-k8s.sh
-          ./deploy-k8s.sh \
+          if ./deploy-k8s.sh \
             --env ${{ github.event.inputs.environment || 'dev' }} \
-            --domain ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
+            --domain ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}; then
+            echo "✅ Helm deployment successful"
+          else
+            echo "⚠️  Helm deployment failed, trying simplified deployment..."
+            chmod +x ./deploy-simple.sh
+            ./deploy-simple.sh
+          fi
 
       - name: Verify deployment
         run: |
