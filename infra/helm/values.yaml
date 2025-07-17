@@ -216,11 +216,14 @@ weaviate:
 ingress:
   enabled: true
   className: "nginx"
-  host: "studymate.local"  # Change this to your actual domain
+  host: "studymate.student.k8s.aet.cit.tum.de"  # Student Rancher domain
   tls: true
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/rewrite-target: /
+    # Student Rancher specific annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 
 # Monitoring configuration
 monitoring:

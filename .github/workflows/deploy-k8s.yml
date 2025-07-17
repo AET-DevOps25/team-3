@@ -16,7 +16,7 @@ on:
       domain:
         description: 'Domain name for deployment'
         required: true
-        default: 'studymate.dev.example.com'
+        default: 'studymate.student.k8s.aet.cit.tum.de'
 
 jobs:
   deploy:
@@ -60,7 +60,7 @@ jobs:
           chmod +x ./deploy-k8s.sh
           ./deploy-k8s.sh \
             --env ${{ github.event.inputs.environment || 'dev' }} \
-            --domain ${{ github.event.inputs.domain || 'studymate.dev.example.com' }}
+            --domain ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
 
       - name: Verify deployment
         run: |
@@ -74,7 +74,7 @@ jobs:
       - name: Get access information
         run: |
           echo "🌐 Access Information:"
-          echo "Domain: ${{ github.event.inputs.domain || 'studymate.dev.example.com' }}"
+          echo "Domain: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}"
           echo ""
           echo "🔗 Useful commands:"
           echo "kubectl get pods -n team-3"

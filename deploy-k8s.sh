@@ -74,8 +74,8 @@ RELEASE_NAME="studymate"
 CHART_PATH="./infra/helm"
 
 # Parse command line arguments
-ENVIRONMENT="local"
-DOMAIN="studymate.local"
+ENVIRONMENT="dev"
+DOMAIN="studymate.student.k8s.aet.cit.tum.de"
 DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
@@ -203,6 +203,23 @@ ingress:
 EOF
 fi
 
+# Student Rancher specific overrides
+if [ "$ENVIRONMENT" = "dev" ] || [ "$ENVIRONMENT" = "prod" ]; then
+    cat >> "$VALUES_FILE" << EOF
+
+# Student Rancher environment overrides
+ingress:
+  annotations:
+    # Force HTTPS redirect for production
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Student Rancher specific settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+EOF
+fi
+
 print_success "Generated values file: $VALUES_FILE"
 
 # Build Helm dependencies if needed
@@ -294,6 +311,7 @@ if [ "$ENVIRONMENT" = "local" ]; then
     echo "  • Application URL: http://$DOMAIN"
 else
     echo "  • Application URL: https://$DOMAIN"
+    echo "  • Student Rancher Dashboard: https://rancher.tum.de"
 fi
 echo ""
 echo "🔧 Useful Commands:"
