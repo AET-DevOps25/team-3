@@ -2,7 +2,7 @@ name: Deployment Tests
 
 on:
   push:
-    branches: [main]
+    branches-ignore: [main]
   pull_request:
     branches: [main]
     types: [labeled]

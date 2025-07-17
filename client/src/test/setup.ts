@@ -113,7 +113,7 @@ Object.defineProperty(window, 'matchMedia', {
 })
 
 // Mock scrollTo
-window.scrollTo = vi.fn()
+window.scrollTo = vi.fn() as any
 
 // Mock File and FileReader
 global.File = class MockFile {
@@ -133,9 +133,19 @@ global.File = class MockFile {
   size: number
   type: string
   lastModified: number
-}
+  webkitRelativePath: string = ''
+  arrayBuffer(): Promise<ArrayBuffer> { return Promise.resolve(new ArrayBuffer(0)) }
+  bytes(): Promise<Uint8Array> { return Promise.resolve(new Uint8Array(0)) }
+  slice(): Blob { return new Blob() }
+  stream(): ReadableStream { return new ReadableStream() }
+  text(): Promise<string> { return Promise.resolve('') }
+} as any
 
 global.FileReader = class MockFileReader {
+  static readonly EMPTY = 0
+  static readonly LOADING = 1
+  static readonly DONE = 2
+  
   readAsDataURL = vi.fn()
   readAsText = vi.fn()
   result: string | ArrayBuffer | null = null
@@ -154,11 +164,11 @@ global.FileReader = class MockFileReader {
   EMPTY = 0
   LOADING = 1
   DONE = 2
-}
+} as any
 
 // Mock crypto.randomUUID
 Object.defineProperty(global, 'crypto', {
   value: {
-    randomUUID: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
+    randomUUID: () => 'test-uuid-' + Math.random().toString(36).substring(2, 11),
   },
 })
