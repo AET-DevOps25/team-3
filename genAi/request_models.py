@@ -1,5 +1,6 @@
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
+from typing import Optional
 
 class BaseLLMRequest(BaseModel):
     """
@@ -11,6 +12,12 @@ class BaseLLMRequest(BaseModel):
 class CreateSessionRequest(BaseLLMRequest):
     document_name: str
     document_base64: str
+    
+    @validator('session_id', 'document_name', 'document_base64')
+    def must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Field cannot be empty')
+        return v
 
 # Chat prompt request
 class PromptRequest(BaseLLMRequest):
@@ -25,6 +32,15 @@ class SummaryLength(str, Enum):
 class SummaryRequest(BaseLLMRequest):
     # length: SummaryLength
     pass
+
+class ProcessRequest(BaseModel):
+    """
+    Process request for compatibility endpoint.
+    """
+    session_id: Optional[str] = None
+    document_id: Optional[str] = None
+    document_name: Optional[str] = None
+    document_base64: Optional[str] = None
 
 
 # Flashcard request

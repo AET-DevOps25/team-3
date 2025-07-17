@@ -17,7 +17,7 @@ authService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://study-mate-postgres:5432/auth_db"
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/auth_db"
     - name: SPRING_DATASOURCE_USERNAME
       value: "postgres"
     - name: SPRING_DATASOURCE_PASSWORD
@@ -50,7 +50,7 @@ documentService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://study-mate-postgres:5432/study-mate"
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/document_db"
     - name: SPRING_DATASOURCE_USERNAME
       value: "postgres"
     - name: SPRING_DATASOURCE_PASSWORD
@@ -101,6 +101,48 @@ genaiService:
       value: "60"
     - name: SERVER_TOMCAT_THREADS_MAX
       value: "200"
+
+server:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/server
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8082
+    targetPort: 8082
+  replicaCount: 1
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: docker
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: server-secret
+          key: database-url
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/mydb"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+      value: "update"
+    - name: SPRING_JPA_SHOW_SQL
+      value: "false"
+    - name: JAVA_OPTS
+      value: "-Xmx768m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: server-secret
+          key: jwt-secret
 
 client:
   image:
