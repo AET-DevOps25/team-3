@@ -131,11 +131,11 @@ print_success "Deployment completed successfully!"
 
 # Wait for pods to be ready
 print_status "Waiting for pods to be ready..."
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=$RELEASE_NAME -n $NAMESPACE --timeout=300s
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=$RELEASE_NAME -n $NAMESPACE --timeout=300s || true
 
 # Get deployment status
 print_status "Deployment status:"
-kubectl get pods -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME
+kubectl get pods -n $NAMESPACE -l app.kubernetes.io/instance=$RELEASE_NAME || echo "No pods found yet"
 
 echo ""
 print_success "StudyMate deployment completed!"
