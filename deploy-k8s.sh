@@ -309,16 +309,30 @@ if [ "$RELEASE_EXISTS" = true ]; then
     }
 else
     print_status "Installing new release..."
-    helm install "$RELEASE_NAME" "$CHART_PATH" \
+    
+    # Try to uninstall any existing release first (handle permission errors)
+    print_status "Cleaning up any existing release..."
+    helm uninstall "$RELEASE_NAME" -n "$NAMESPACE" --ignore-not-found=true 2>/dev/null || true
+    
+    # Wait a moment for cleanup
+    sleep 5
+    
+    # Try installation with different strategies
+    print_status "Attempting Helm installation..."
+    
+    # Strategy 1: Regular install
+    if helm install "$RELEASE_NAME" "$CHART_PATH" \
         -f "$VALUES_FILE" \
         --namespace "$NAMESPACE" \
         $CREATE_NAMESPACE \
         --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
         --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
         --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
-        --atomic \
-        --timeout=10m || {
-        print_warning "Helm install with --atomic failed, trying without --atomic..."
+        --timeout=10m; then
+        print_success "Helm installation completed successfully"
+    else
+        print_warning "Regular install failed, trying with --replace..."
+        # Strategy 2: Install with replace flag
         helm install "$RELEASE_NAME" "$CHART_PATH" \
             -f "$VALUES_FILE" \
             --namespace "$NAMESPACE" \
@@ -326,8 +340,13 @@ else
             --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
             --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
-            --timeout=10m
-    }
+            --replace \
+            --timeout=10m || {
+            print_error "All installation strategies failed"
+            print_error "This might be due to insufficient permissions or existing resources"
+            exit 1
+        }
+    fi
 fi
 
 print_success "Deployment completed successfully!"

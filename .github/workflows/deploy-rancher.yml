@@ -72,6 +72,14 @@ jobs:
           echo "🔍 Testing Kubernetes connection..."
           kubectl cluster-info || echo "⚠️  Cluster info not available, but continuing..."
           kubectl get namespaces || echo "⚠️  Cannot list namespaces, but continuing..."
+          
+          # Check current user and permissions
+          echo "👤 Current user: $(kubectl config view --minify -o jsonpath='{.users[0].name}')"
+          echo "🔑 Testing permissions..."
+          kubectl auth can-i list pods --all-namespaces || echo "⚠️  Cannot list pods across namespaces"
+          kubectl auth can-i create namespaces || echo "⚠️  Cannot create namespaces"
+          kubectl auth can-i delete namespaces || echo "⚠️  Cannot delete namespaces"
+          
           echo "✅ Kubernetes tools ready"
 
       - name: Validate secrets
@@ -92,18 +100,20 @@ jobs:
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
         run: |
-          # Check if namespace exists and clean up if needed
+          # Always delete the namespace to ensure clean slate
+          echo "🗑️  Cleaning up existing namespace..."
+          kubectl delete namespace team-3 --ignore-not-found=true
+          sleep 15  # Wait for deletion to complete
+          
+          # Verify namespace is gone
           if kubectl get namespace team-3 &> /dev/null; then
-            echo "⚠️  Namespace team-3 already exists"
-            # Check if it's managed by Helm
-            if kubectl get namespace team-3 -o jsonpath='{.metadata.labels.app\.kubernetes\.io/managed-by}' | grep -q "Helm"; then
-              echo "✅ Namespace is managed by Helm, proceeding..."
-            else
-              echo "🗑️  Deleting existing namespace to recreate with Helm..."
-              kubectl delete namespace team-3 --ignore-not-found=true
-              sleep 10  # Wait for deletion to complete
-            fi
+            echo "⚠️  Namespace still exists, waiting longer..."
+            sleep 30
+            kubectl delete namespace team-3 --ignore-not-found=true --force --grace-period=0
+            sleep 10
           fi
+          
+          echo "✅ Namespace cleanup completed"
           
           chmod +x ./deploy-k8s.sh
           ./deploy-k8s.sh \
