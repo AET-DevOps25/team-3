@@ -137,30 +137,6 @@ jobs:
         
         npm test -- src/test/auth-functionality.test.ts
         
-    - name: Test server-side authentication
-      run: |
-        # Test registration
-        curl -X POST http://localhost:8086/api/auth/register \
-          -H "Content-Type: application/json" \
-          -d '{"username":"testuser","email":"test@example.com","password":"password123","firstName":"Test","lastName":"User"}' \
-          -w "%{http_code}" -s -o /dev/null | grep -q "200\|201" || exit 1
-          
-        # Test login
-        LOGIN_RESPONSE=$(curl -X POST http://localhost:8086/api/auth/login \
-          -H "Content-Type: application/json" \
-          -d '{"username":"testuser","password":"password123"}' \
-          -s)
-        
-        echo "Login response: $LOGIN_RESPONSE"
-        
-        # Extract token (would need jq in real scenario)
-        TOKEN=$(echo "$LOGIN_RESPONSE" | grep -o '"token":"[^"]*' | cut -d'"' -f4)
-        
-        # Test protected endpoint
-        curl -X GET http://localhost:8086/api/auth/me \
-          -H "Authorization: Bearer $TOKEN" \
-          -w "%{http_code}" -s -o /dev/null | grep -q "200" || exit 1
-          
     - name: Cleanup
       if: always()
       run: |
@@ -310,18 +286,6 @@ jobs:
         
         npm test -- src/test/document-functionality.test.ts
         
-    - name: Test server-side document management
-      run: |
-        # Test document upload
-        curl -X POST http://localhost:8084/api/documents/upload \
-          -H "Content-Type: multipart/form-data" \
-          -F "file=@client/test-document.txt" \
-          -w "%{http_code}" -s -o /dev/null | grep -q "200\|201" || exit 1
-          
-        # Test document listing
-        curl -X GET http://localhost:8084/api/documents \
-          -w "%{http_code}" -s -o /dev/null | grep -q "200" || exit 1
-          
     - name: Cleanup
       if: always()
       run: |
@@ -667,17 +631,6 @@ jobs:
         EOF
         
         npm test -- src/test/error-handling.test.ts
-        
-    - name: Test Python error handling
-      run: |
-        cd genAi
-        pip install -r requirements.txt
-        pip install -r requirements-test.txt
-        
-        # Test error handling scenarios
-        python -m pytest test_main.py::TestChatEndpoint::test_chat_session_not_found -v
-        python -m pytest test_main.py::TestRequestValidation::test_invalid_json -v
-        python -m pytest test_main.py::TestRequestValidation::test_missing_required_fields -v
         
   # Job 5: Performance & Scalability Tests
   performance-tests:

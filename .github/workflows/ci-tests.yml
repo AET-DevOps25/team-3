@@ -196,11 +196,6 @@ jobs:
         cd microservices/auth-service
         ./gradlew test --info --stacktrace
         
-    - name: Generate test report
-      run: |
-        cd microservices/auth-service
-        ./gradlew jacocoTestReport
-        
     - name: Archive test results
       uses: actions/upload-artifact@v4
       if: always()
@@ -255,11 +250,6 @@ jobs:
         cd microservices/document-service
         ./gradlew test --info --stacktrace
         
-    - name: Generate test report
-      run: |
-        cd microservices/document-service
-        ./gradlew jacocoTestReport
-        
     - name: Archive test results
       uses: actions/upload-artifact@v4
       if: always()
@@ -313,11 +303,6 @@ jobs:
       run: |
         cd microservices/genai-service
         ./gradlew test --info --stacktrace
-        
-    - name: Generate test report
-      run: |
-        cd microservices/genai-service
-        ./gradlew jacocoTestReport
         
     - name: Archive test results
       uses: actions/upload-artifact@v4
