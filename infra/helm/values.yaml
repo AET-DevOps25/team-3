@@ -1,6 +1,6 @@
 # This file contains the default values for the studymate App Helm chart.
 
-teamid: team-3
+teamid: studymate
 
 # Auth Service - Authentication microservice
 authService:
@@ -109,13 +109,17 @@ genaiService:
 client:
   image:
     repository: ghcr.io/aet-devops25/team-3/client
-    tag: latest
+    tag: k8s-latest
     pullPolicy: Always
   service:
     type: ClusterIP
     port: 80
     targetPort: 80
   replicaCount: 1
+  apiBaseUrl: "https://studymate.student.k8s.aet.cit.tum.de"
+  env:
+    - name: VITE_API_BASE_URL
+      value: "https://studymate.student.k8s.aet.cit.tum.de"
 
 genAi:
   image:
@@ -220,7 +224,6 @@ ingress:
   tls: true
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/rewrite-target: /
     # Student Rancher specific annotations
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"

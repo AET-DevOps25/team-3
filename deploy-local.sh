@@ -107,7 +107,7 @@ fi
 print_success "Prerequisites check passed"
 
 # Configuration
-NAMESPACE="team-3"
+NAMESPACE="studymate"
 RELEASE_NAME="studymate"
 CHART_PATH="./infra/helm"
 DOMAIN="${DOMAIN:-studymate.student.k8s.aet.cit.tum.de}"

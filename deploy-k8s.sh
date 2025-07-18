@@ -69,7 +69,7 @@ check_secrets() {
 }
 
 # Configuration
-NAMESPACE="team-3"
+NAMESPACE="studymate"
 RELEASE_NAME="studymate"
 CHART_PATH="./infra/helm"
 

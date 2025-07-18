@@ -109,42 +109,20 @@ jobs:
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
         run: |
-          # Always delete the namespace to ensure clean slate
-          echo "🗑️  Cleaning up existing namespace..."
-          kubectl delete namespace team-3 --ignore-not-found=true
-          sleep 15  # Wait for deletion to complete
-          
-          # Verify namespace is gone
-          if kubectl get namespace team-3 &> /dev/null; then
-            echo "⚠️  Namespace still exists, waiting longer..."
-            sleep 30
-            kubectl delete namespace team-3 --ignore-not-found=true --force --grace-period=0
-            sleep 10
-          fi
-          
-          echo "✅ Namespace cleanup completed"
-          
+
+
           # Try Helm deployment first
           echo "🔧 Attempting Helm deployment..."
-          chmod +x ./deploy-k8s.sh
-          if ./deploy-k8s.sh \
-            --env ${{ github.event.inputs.environment || 'dev' }} \
-            --domain ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}; then
-            echo "✅ Helm deployment successful"
-          else
-            echo "⚠️  Helm deployment failed, trying simplified deployment..."
-            chmod +x ./deploy-simple.sh
-            ./deploy-simple.sh
-          fi
+          helm install my-studymate-deployment ./infra/helm --namespace studymate
 
       - name: Verify deployment
         run: |
           echo "🔍 Checking deployment status..."
-          kubectl get pods -n team-3 -l app.kubernetes.io/instance=studymate || echo "No pods found yet"
-          kubectl get services -n team-3 -l app.kubernetes.io/instance=studymate || echo "No services found yet"
+          kubectl get pods -n studymate -l app.kubernetes.io/instance=studymate || echo "No pods found yet"
+          kubectl get services -n studymate -l app.kubernetes.io/instance=studymate || echo "No services found yet"
           
           echo "🏥 Checking pod health..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=studymate -n team-3 --timeout=300s || echo "Pod health check skipped"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=studymate -n studymate --timeout=300s || echo "Pod health check skipped"
 
       - name: Get access information
         run: |
@@ -152,6 +130,6 @@ jobs:
           echo "Domain: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}"
           echo ""
           echo "🔗 Useful commands:"
-          echo "kubectl get pods -n team-3"
-          echo "kubectl logs -f deployment/studymate-client -n team-3"
-          echo "kubectl port-forward svc/studymate-client 8080:80 -n team-3" 
+          echo "kubectl get pods -n studymate"
+          echo "kubectl logs -f deployment/studymate-client -n studymate"
+          echo "kubectl port-forward svc/studymate-client 8080:80 -n studymate" 

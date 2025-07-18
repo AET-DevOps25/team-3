@@ -32,7 +32,7 @@ print_error() {
 }
 
 # Configuration
-NAMESPACE="team-3"
+NAMESPACE="studymate"
 DOMAIN="studymate.student.k8s.aet.cit.tum.de"
 
 print_status "Environment: Simplified deployment"
