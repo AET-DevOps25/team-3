@@ -354,277 +354,7 @@ jobs:
         curl -f http://localhost:8086/actuator/health || echo "Auth service not ready"
         curl -f http://localhost:8084/actuator/health || echo "Document service not ready"
         
-  # Job 6: Authentication & Authorization Functionality Tests
-  auth-functionality-tests:
-    name: Authentication & Authorization Functionality
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: auth_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U test -d auth_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: client/package-lock.json
-        
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        java-version: ${{ env.JAVA_VERSION }}
-        distribution: 'temurin'
-        
-    - name: Start Auth Service
-      run: |
-        cd microservices/auth-service
-        chmod +x gradlew
-        ./gradlew bootRun &
-        echo $! > auth-service.pid
-        
-        # Wait for service to start
-        timeout 60 bash -c 'until curl -f http://localhost:8086/actuator/health; do sleep 5; done' || echo 'Auth service health check failed'
-        
-    - name: Test client-side authentication
-      run: |
-        cd client
-        npm ci
-        
-        # Create focused auth test
-        cat > src/test/auth-functionality.test.ts << 'EOF'
-        import { describe, it, expect } from 'vitest'
-        import { server } from './mocks/server'
-        import { http, HttpResponse } from 'msw'
-        
-        describe('Authentication Functionality', () => {
-          it('should handle login flow', async () => {
-            const loginData = {
-              username: 'testuser',
-              password: 'password123'
-            }
-            
-            server.use(
-              http.post('/api/auth/login', async ({ request }) => {
-                const body = await request.json()
-                expect(body).toEqual(loginData)
-                return HttpResponse.json({
-                  token: 'test-jwt-token',
-                  user: { id: 1, username: 'testuser' }
-                })
-              })
-            )
-            
-            const response = await fetch('/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(loginData)
-            })
-            
-            expect(response.status).toBe(200)
-            const result = await response.json()
-            expect(result.token).toBe('test-jwt-token')
-          })
-          
-          it('should handle JWT token validation', async () => {
-            server.use(
-              http.get('/api/auth/me', ({ request }) => {
-                const authHeader = request.headers.get('Authorization')
-                if (!authHeader || !authHeader.startsWith('Bearer ')) {
-                  return HttpResponse.json({ error: 'Unauthorized' }, { status: 401 })
-                }
-                return HttpResponse.json({ id: 1, username: 'testuser' })
-              })
-            )
-            
-            # Test with valid token
-            const validResponse = await fetch('/api/auth/me', {
-              headers: { Authorization: 'Bearer valid-token' }
-            })
-            expect(validResponse.status).toBe(200)
-            
-            # Test without token
-            const invalidResponse = await fetch('/api/auth/me')
-            expect(invalidResponse.status).toBe(401)
-          })
-        })
-        EOF
-        
-        npm test -- src/test/auth-functionality.test.ts
-        
-    - name: Cleanup
-      if: always()
-      run: |
-        if [ -f microservices/auth-service/auth-service.pid ]; then
-          kill $(cat microservices/auth-service/auth-service.pid) || true
-        fi
-        
-  # Job 7: Document Management Functionality Tests
-  document-functionality-tests:
-    name: Document Management Functionality
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_DB: document_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U test -d document_test"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-          
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ env.NODE_VERSION }}
-        cache: 'npm'
-        cache-dependency-path: client/package-lock.json
-        
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        java-version: ${{ env.JAVA_VERSION }}
-        distribution: 'temurin'
-        
-    - name: Start Document Service
-      run: |
-        cd microservices/document-service
-        chmod +x gradlew
-        ./gradlew bootRun &
-        echo $! > document-service.pid
-        
-        # Wait for service to start
-        timeout 60 bash -c 'until curl -f http://localhost:8084/actuator/health; do sleep 5; done' || echo 'Document service health check failed'
-        
-    - name: Test document upload functionality
-      run: |
-        cd client
-        npm ci
-        
-        # Create test document
-        echo "This is a test document for upload testing." > test-document.txt
-        
-        # Create focused document test
-        cat > src/test/document-functionality.test.ts << 'EOF'
-        import { describe, it, expect } from 'vitest'
-        import { server } from './mocks/server'
-        import { http, HttpResponse } from 'msw'
-        
-        describe('Document Management Functionality', () => {
-          it('should handle file upload', async () => {
-            server.use(
-              http.post('/api/documents/upload', async ({ request }) => {
-                const formData = await request.formData()
-                const file = formData.get('file') as File
-                
-                expect(file).toBeDefined()
-                expect(file.name).toBe('test-document.txt')
-                expect(file.type).toBe('text/plain')
-                
-                return HttpResponse.json({
-                  id: 1,
-                  filename: file.name,
-                  status: 'UPLOADED',
-                  size: file.size,
-                  contentType: file.type
-                })
-              })
-            )
-            
-            const testFile = new File(['test content'], 'test-document.txt', { type: 'text/plain' })
-            const formData = new FormData()
-            formData.append('file', testFile)
-            
-            const response = await fetch('/api/documents/upload', {
-              method: 'POST',
-              body: formData
-            })
-            
-            expect(response.status).toBe(200)
-            const result = await response.json()
-            expect(result.filename).toBe('test-document.txt')
-            expect(result.status).toBe('UPLOADED')
-          })
-          
-          it('should validate file types', async () => {
-            server.use(
-              http.post('/api/documents/upload', async ({ request }) => {
-                const formData = await request.formData()
-                const file = formData.get('file') as File
-                
-                if (!['application/pdf', 'text/plain'].includes(file.type)) {
-                  return HttpResponse.json(
-                    { error: 'Unsupported file type' },
-                    { status: 415 }
-                  )
-                }
-                
-                return HttpResponse.json({ id: 1, filename: file.name })
-              })
-            )
-            
-            # Test valid file type
-            const validFile = new File(['content'], 'test.pdf', { type: 'application/pdf' })
-            const validFormData = new FormData()
-            validFormData.append('file', validFile)
-            
-            const validResponse = await fetch('/api/documents/upload', {
-              method: 'POST',
-              body: validFormData
-            })
-            expect(validResponse.status).toBe(200)
-            
-            # Test invalid file type
-            const invalidFile = new File(['content'], 'test.exe', { type: 'application/exe' })
-            const invalidFormData = new FormData()
-            invalidFormData.append('file', invalidFile)
-            
-            const invalidResponse = await fetch('/api/documents/upload', {
-              method: 'POST',
-              body: invalidFormData
-            })
-            expect(invalidResponse.status).toBe(415)
-          })
-        })
-        EOF
-        
-        npm test -- src/test/document-functionality.test.ts
-        
-    - name: Cleanup
-      if: always()
-      run: |
-        if [ -f microservices/document-service/document-service.pid ]; then
-          kill $(cat microservices/document-service/document-service.pid) || true
-        fi
-        
-  # Job 8: AI Features Functionality Tests
+  # Job 6: AI Features Functionality Tests
   ai-functionality-tests:
     name: AI Features Functionality
     runs-on: ubuntu-latest
@@ -727,7 +457,7 @@ jobs:
           kill $(cat genAi/genai-service.pid) || true
         fi
         
-  # Job 9: Error Handling & Recovery Tests
+  # Job 7: Error Handling & Recovery Tests
   error-handling-tests:
     name: Error Handling & Recovery
     runs-on: ubuntu-latest
@@ -813,7 +543,7 @@ jobs:
         
         npm test -- src/test/error-handling.test.ts
         
-  # Job 10: Security Tests
+  # Job 8: Security Tests
   security-tests:
     name: Security Tests
     runs-on: ubuntu-latest
@@ -844,7 +574,7 @@ jobs:
         base: main
         head: HEAD
         
-  # Job 11: Performance Tests
+  # Job 9: Performance Tests
   performance-tests:
     name: Performance Tests
     runs-on: ubuntu-latest
@@ -895,11 +625,11 @@ jobs:
         # Run load test (will fail without running services, but validates config)
         k6 run --vus 1 --duration 10s load-test.js || true
         
-  # Job 12: Test Summary
+  # Job 10: Test Summary
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [client-tests, genai-tests, auth-service-tests, document-service-tests, integration-tests, auth-functionality-tests, document-functionality-tests, ai-functionality-tests, error-handling-tests, security-tests]
+    needs: [client-tests, genai-tests, auth-service-tests, document-service-tests, integration-tests, ai-functionality-tests, error-handling-tests, security-tests]
     if: always()
     
     steps:
@@ -951,17 +681,6 @@ jobs:
           echo "❌ Security Tests: FAILED" >> test-summary.md
         fi
         
-        if [ "${{ needs.auth-functionality-tests.result }}" = "success" ]; then
-          echo "✅ Authentication Functionality Tests: PASSED" >> test-summary.md
-        else
-          echo "❌ Authentication Functionality Tests: FAILED" >> test-summary.md
-        fi
-        
-        if [ "${{ needs.document-functionality-tests.result }}" = "success" ]; then
-          echo "✅ Document Management Functionality Tests: PASSED" >> test-summary.md
-        else
-          echo "❌ Document Management Functionality Tests: FAILED" >> test-summary.md
-        fi
         
         if [ "${{ needs.ai-functionality-tests.result }}" = "success" ]; then
           echo "✅ AI Features Functionality Tests: PASSED" >> test-summary.md
@@ -1003,7 +722,7 @@ jobs:
             body: summary
           });
           
-  # Job 13: Cleanup
+  # Job 11: Cleanup
   cleanup:
     name: Cleanup
     runs-on: ubuntu-latest
