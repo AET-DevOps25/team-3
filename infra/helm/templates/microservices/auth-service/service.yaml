@@ -12,7 +12,7 @@ spec:
     - port: {{ .Values.authService.service.port }}
       targetPort: {{ .Values.authService.service.targetPort }}
       protocol: TCP
-      name: http
+      name: auth-http
   selector:
     {{- include "studymate.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: auth-service 

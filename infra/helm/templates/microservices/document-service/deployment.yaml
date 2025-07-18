@@ -23,7 +23,7 @@ spec:
           image: "{{ .Values.documentService.image.repository }}:{{ .Values.documentService.image.tag }}"
           imagePullPolicy: {{ .Values.documentService.image.pullPolicy }}
           ports:
-            - name: http
+            - name: document-http
               containerPort: {{ .Values.documentService.service.targetPort }}
               protocol: TCP
           env:
@@ -31,7 +31,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /actuator/health
-              port: http
+              port: document-http
             initialDelaySeconds: 120
             periodSeconds: 30
             timeoutSeconds: 10
@@ -39,7 +39,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health
-              port: http
+              port: document-http
             initialDelaySeconds: 90
             periodSeconds: 15
             timeoutSeconds: 5

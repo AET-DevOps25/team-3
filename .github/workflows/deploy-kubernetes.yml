@@ -134,8 +134,18 @@ jobs:
         run: |
           echo "🚀 Deploying StudyMate Application..."
           
-          # Use helm upgrade --install for better permission handling
-          helm upgrade --install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
+          # Force clean install to avoid upgrade conflicts
+          if helm status ${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} > /dev/null 2>&1; then
+            echo "📦 Uninstalling existing release to avoid conflicts..."
+            helm uninstall ${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --wait
+            echo "⏳ Waiting for resources cleanup..."
+            sleep 30
+          fi
+          
+          echo "📦 Installing fresh Helm release..."
+          kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+          
+          helm install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
             --namespace ${{ env.HELM_NAMESPACE }} \
             --create-namespace \
             --set ingress.host=${{ env.DOMAIN }} \

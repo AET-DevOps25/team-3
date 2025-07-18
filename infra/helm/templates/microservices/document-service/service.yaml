@@ -12,7 +12,7 @@ spec:
     - port: {{ .Values.documentService.service.port }}
       targetPort: {{ .Values.documentService.service.targetPort }}
       protocol: TCP
-      name: http
+      name: document-http
   selector:
     {{- include "studymate.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: document-service 
