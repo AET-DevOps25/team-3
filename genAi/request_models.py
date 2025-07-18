@@ -5,10 +5,10 @@ class BaseLLMRequest(BaseModel):
     """
     Base class for all LLM requests.
     """
-    session_id: str
+    user_id: str
 
-# Create session request
-class CreateSessionRequest(BaseLLMRequest):
+# Load document request
+class LoadDocumentRequest(BaseLLMRequest):
     document_name: str
     document_base64: str
 
@@ -23,14 +23,12 @@ class SummaryLength(str, Enum):
     long = "long"
     
 class SummaryRequest(BaseLLMRequest):
-    # length: SummaryLength
-    pass
+    document_name: str
 
 
 # Flashcard request
 class FlashcardRequest(BaseLLMRequest):
-    # count: int = Field(default=10, ge=1, le=35)
-    pass
+    document_name: str
     
 # Quiz request
 class QuizDifficulty(str, Enum):
@@ -39,6 +37,4 @@ class QuizDifficulty(str, Enum):
     hard = "hard"
 
 class QuizRequest(BaseLLMRequest):
-    # question_count: int = Field(default=5, ge=1, le=20)
-    # difficulty: QuizDifficulty
-    pass
+    document_name: str

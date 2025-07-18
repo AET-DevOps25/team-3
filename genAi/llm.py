@@ -28,9 +28,10 @@ class StudyLLM:
         base_url="https://gpu.aet.cit.tum.de/api/"
     )
     
-    def __init__(self, user_id: str, doc_path: str):
+    def __init__(self):
         base_system_template = ("You are an expert on the information in the context given below.\n"
-                                     "Use the context as your primary knowledge source. If you can't fulfill your task given the context, just say that.\n"
+                                     "Use the context as your primary knowledge source.\n"
+                                    "Do not mention that you have a context, just use it to fulfill your task.\n"
                                     "context: {context}\n"
                                     "Your task is {task}"
                                     )
@@ -39,12 +40,27 @@ class StudyLLM:
             ('human', '{input}')
         ])
         try: 
-            self.rag_helper = RAGHelper(user_id=user_id, doc_path=doc_path)
+            self.rag_helper = RAGHelper()
         except Exception as e:
             raise ValueError(f"Error initializing RAGHelper: {e}")
 
     
-    async def prompt(self, prompt: str) -> str:
+    async def load_document(self, doc_name: str, path: str, user_id: str):
+        """
+        Load a document into the RAG system.
+        
+        Args:
+            doc_name (str): The name of the document to load.
+            user_id (str): The ID of the user loading the document.
+        """
+        try:
+            await self.rag_helper.load_document(doc_name, path, user_id)
+            return f"Document {doc_name} loaded successfully for user {user_id}."
+        except Exception as e:
+            error_msg = f"Failed to load document {doc_name} for user {user_id}: {str(e)}"
+            raise ValueError(error_msg)
+    
+    async def prompt(self, prompt: str, user_id: str) -> str:
         """
         Call the LLM with a given prompt.
         
@@ -59,7 +75,7 @@ class StudyLLM:
             "If you're asked a question that does not relate to your context, do not answer it - instead, answer by saying you're only familiar with <the topic in your context>.\n"
             )
         
-        context = self.rag_helper.retrieve(prompt, top_k=5)
+        context = self.rag_helper.retrieve(query=prompt, user_id=user_id, top_k=5)
         chain = self.base_prompt_template | self.chat_llm
         response = await chain.ainvoke({
             'context': context,
@@ -69,7 +85,7 @@ class StudyLLM:
         
         return response.content
 
-    async def summarize(self):
+    async def summarize(self, document_name: str, user_id: str) -> str:
         """
         Summarize the given document using the LLM.
         
@@ -102,12 +118,13 @@ class StudyLLM:
             combine_prompt=combine_prompt
         )
 
-        chunks = self.rag_helper.get_generation_chunks()
+        doc_name = f"{user_id}_{document_name}"
+        chunks = self.rag_helper.get_generation_chunks(user_id, doc_name)
         result = await chain.ainvoke({"input_documents": chunks})
         
         return result["output_text"]
         
-    async def generate_flashcards(self):
+    async def generate_flashcards(self, document_name: str, user_id: str):
         """
         Generate flashcards from the document using the LLM.
         
@@ -115,11 +132,12 @@ class StudyLLM:
             list: A list of flashcard objects.
         """
         flashcard_chain = FlashcardChain(self.generation_llm)
-        chunks = self.rag_helper.get_generation_chunks()
+        doc_name = f"{user_id}_{document_name}"
+        chunks = self.rag_helper.get_generation_chunks(user_id, doc_name)
         cards = await flashcard_chain.invoke(chunks)
         return cards
     
-    async def generate_quiz(self):
+    async def generate_quiz(self, document_name: str, user_id: str):
         """
         Generate a quiz from the document using the LLM.
         
@@ -127,7 +145,8 @@ class StudyLLM:
             list: A quiz object.
         """
         quiz_chain = QuizChain(self.generation_llm)
-        chunks = self.rag_helper.get_generation_chunks()
+        doc_name = f"{user_id}_{document_name}"
+        chunks = self.rag_helper.get_generation_chunks(user_id, doc_name)
         quiz = await quiz_chain.invoke(chunks)
         return quiz
     
