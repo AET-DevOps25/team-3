@@ -22,7 +22,7 @@ env:
   GITHUB_ACTOR: ${{ github.actor }}
   NODE_VERSION: '18'
   PYTHON_VERSION: '3.9'
-  JAVA_VERSION: '17'
+  JAVA_VERSION: '21'
 
 jobs:
   # Job 1: Client Tests (React/TypeScript)
@@ -85,7 +85,7 @@ jobs:
       weaviate:
         image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
         ports:
-          - 8083:8080
+          - 8080:8080
         env:
           AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
           QUERY_DEFAULTS_LIMIT: 25
@@ -107,7 +107,7 @@ jobs:
     - name: Wait for Weaviate to be ready
       run: |
         echo "Waiting for Weaviate to start..."
-        timeout 120 bash -c 'until curl -f http://localhost:8083/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
+        timeout 120 bash -c 'until curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
         
     - name: Install dependencies
       run: |
@@ -125,7 +125,7 @@ jobs:
         OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT || 'test-chat-key' }}
         OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN || 'test-gen-key' }}
         WEAVIATE_HOST: localhost
-        WEAVIATE_PORT: 8083
+        WEAVIATE_PORT: 8080
       run: |
         cd genAi
         python -m pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml -v
@@ -187,8 +187,10 @@ jobs:
       env:
         SPRING_PROFILES_ACTIVE: test
         SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/auth_test
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
         SPRING_DATASOURCE_USERNAME: test
         SPRING_DATASOURCE_PASSWORD: test
+        SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       run: |
         cd server/auth-service
         ./gradlew test --info --stacktrace
@@ -241,8 +243,10 @@ jobs:
       env:
         SPRING_PROFILES_ACTIVE: test
         SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/document_test
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
         SPRING_DATASOURCE_USERNAME: test
         SPRING_DATASOURCE_PASSWORD: test
+        SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
       run: |
         cd server/document-service
         ./gradlew test --info --stacktrace
@@ -281,7 +285,7 @@ jobs:
       weaviate:
         image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
         ports:
-          - 8083:8080
+          - 8080:8080
         env:
           AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
           QUERY_DEFAULTS_LIMIT: 25
@@ -314,7 +318,7 @@ jobs:
     - name: Wait for Weaviate to be ready
       run: |
         echo "Waiting for Weaviate to start..."
-        timeout 120 bash -c 'until curl -f http://localhost:8083/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
+        timeout 120 bash -c 'until curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
         
     - name: Start services
       run: |
@@ -342,7 +346,7 @@ jobs:
         OPEN_WEBUI_API_KEY_CHAT: test-chat-key
         OPEN_WEBUI_API_KEY_GEN: test-gen-key
         WEAVIATE_HOST: localhost
-        WEAVIATE_PORT: 8083
+        WEAVIATE_PORT: 8080
       run: |
         cd client
         npm ci
@@ -351,7 +355,7 @@ jobs:
     - name: Health check services
       run: |
         curl -f http://localhost:8081/health || echo "GenAI service not ready"
-        curl -f http://localhost:8086/actuator/health || echo "Auth service not ready"
+        curl -f http://localhost:8083/actuator/health || echo "Auth service not ready"
         curl -f http://localhost:8084/actuator/health || echo "Document service not ready"
         
   # Job 6: AI Features Functionality Tests
@@ -364,7 +368,7 @@ jobs:
       weaviate:
         image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
         ports:
-          - 8083:8080
+          - 8080:8080
         env:
           AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
           QUERY_DEFAULTS_LIMIT: 25
@@ -390,7 +394,7 @@ jobs:
     - name: Wait for Weaviate to be ready
       run: |
         echo "Waiting for Weaviate to start..."
-        timeout 120 bash -c 'until curl -f http://localhost:8083/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
+        timeout 120 bash -c 'until curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
         
     - name: Install Python dependencies
       run: |
@@ -403,7 +407,7 @@ jobs:
         OPEN_WEBUI_API_KEY_CHAT: test-chat-key
         OPEN_WEBUI_API_KEY_GEN: test-gen-key
         WEAVIATE_HOST: localhost
-        WEAVIATE_PORT: 8083
+        WEAVIATE_PORT: 8080
       run: |
         cd genAi
         nohup python -m uvicorn main:app --host 0.0.0.0 --port 8081 &
