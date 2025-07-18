@@ -28,6 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
     
+    env:
+      HELM_NAMESPACE: studymate
+      DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
+      IMAGE_TAG: k8s-latest
+      POSTGRES_PERSISTENCE_SIZE: 8Gi
+      WEAVIATE_PERSISTENCE_SIZE: 10Gi
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -99,6 +106,8 @@ jobs:
       - name: Deploy PostgreSQL with Bitnami
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          HELM_RELEASE_NAME: studymate-postgres
+          CHART_PATH: bitnami/postgresql
         run: |
           echo "🗄️  Deploying PostgreSQL with Bitnami..."
           
@@ -107,14 +116,14 @@ jobs:
           helm repo update
           
           # Create namespace if it doesn't exist
-          kubectl create namespace studymate --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
           
           # Deploy Bitnami PostgreSQL
-          helm upgrade --install studymate-postgres bitnami/postgresql \
-            --namespace studymate \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
             --set auth.postgresPassword="${POSTGRES_PASSWORD}" \
             --set auth.database=studymate \
-            --set primary.persistence.size=8Gi \
+            --set primary.persistence.size=${{ env.POSTGRES_PERSISTENCE_SIZE }} \
             --set primary.persistence.storageClass="" \
             --set metrics.enabled=true \
             --set metrics.serviceMonitor.enabled=false \
@@ -129,16 +138,17 @@ jobs:
           OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
-          DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
+          HELM_RELEASE_NAME: studymate
+          CHART_PATH: ./infra/helm
         run: |
           echo "🚀 Deploying StudyMate Application..."
           
           # Use helm upgrade --install for better permission handling
-          helm upgrade --install studymate ./infra/helm \
-            --namespace studymate \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
             --create-namespace \
-            --set ingress.host="${DOMAIN}" \
-            --set client.image.tag="k8s-latest" \
+            --set ingress.host=${{ env.DOMAIN }} \
+            --set client.image.tag=${{ env.IMAGE_TAG }} \
             --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
             --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
             --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
@@ -149,22 +159,20 @@ jobs:
       - name: Verify deployment
         run: |
           echo "🔍 Checking deployment status..."
-          kubectl get pods -n studymate -l app.kubernetes.io/instance=studymate
-          kubectl get services -n studymate -l app.kubernetes.io/instance=studymate
-          kubectl get ingress -n studymate
+          kubectl get pods -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.HELM_RELEASE_NAME }}
+          kubectl get services -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.HELM_RELEASE_NAME }}
+          kubectl get ingress -n ${{ env.HELM_NAMESPACE }}
           
           echo "🏥 Waiting for pods to be ready..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=studymate -n studymate --timeout=300s || echo "Some pods may still be starting"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${{ env.HELM_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "Some pods may still be starting"
 
       - name: Get access information
-        env:
-          DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
         run: |
           echo "🌐 StudyMate Deployment Complete!"
-          echo "🔗 Application URL: https://${DOMAIN}"
+          echo "🔗 Application URL: https://${{ env.DOMAIN }}"
           echo ""
           echo "📊 Useful commands:"
-          echo "kubectl get pods -n studymate"
-          echo "kubectl logs -f deployment/studymate-client -n studymate"
-          echo "kubectl logs -f deployment/studymate-auth-service -n studymate"
-          echo "kubectl port-forward svc/studymate-client 8080:80 -n studymate" 
+          echo "kubectl get pods -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/${{ env.HELM_RELEASE_NAME }}-client -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/${{ env.HELM_RELEASE_NAME }}-auth-service -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl port-forward svc/${{ env.HELM_RELEASE_NAME }}-client 8080:80 -n ${{ env.HELM_NAMESPACE }}" 
