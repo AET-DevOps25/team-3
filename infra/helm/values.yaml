@@ -17,17 +17,14 @@ authService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/auth_db"
+      value: "jdbc:postgresql://studymate-postgres:5432/studymate"
     - name: SPRING_DATASOURCE_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: postgres-secret
-          key: username
+      value: "postgres"
     - name: SPRING_DATASOURCE_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: postgres-secret
-          key: password
+          name: studymate-postgres
+          key: postgres-password
     - name: JWT_SECRET
       valueFrom:
         secretKeyRef:
@@ -53,17 +50,14 @@ documentService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/document_db"
+      value: "jdbc:postgresql://studymate-postgres:5432/studymate"
     - name: SPRING_DATASOURCE_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: postgres-secret
-          key: username
+      value: "postgres"
     - name: SPRING_DATASOURCE_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: postgres-secret
-          key: password
+          name: studymate-postgres
+          key: postgres-password
     - name: JWT_SECRET
       valueFrom:
         secretKeyRef:
@@ -161,7 +155,9 @@ genAi:
           name: genai-secret
           key: langsmith-api-key
 
+# PostgreSQL configuration (disabled when using Bitnami)
 postgres:
+  enabled: false  # Disabled - using Bitnami PostgreSQL instead
   image:
     repository: postgres
     tag: "15"

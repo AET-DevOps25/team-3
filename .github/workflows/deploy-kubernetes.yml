@@ -96,33 +96,55 @@ jobs:
 
 # JWT Secret is now provided via GitHub secrets
 
-      - name: Deploy with Helm
+      - name: Deploy PostgreSQL with Bitnami
         env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+        run: |
+          echo "🗄️  Deploying PostgreSQL with Bitnami..."
+          
+          # Add Bitnami repository
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo update
+          
+          # Create namespace if it doesn't exist
+          kubectl create namespace studymate --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Deploy Bitnami PostgreSQL
+          helm upgrade --install studymate-postgres bitnami/postgresql \
+            --namespace studymate \
+            --set auth.postgresPassword="${POSTGRES_PASSWORD}" \
+            --set auth.database=studymate \
+            --set primary.persistence.size=8Gi \
+            --set primary.persistence.storageClass="" \
+            --set metrics.enabled=true \
+            --set metrics.serviceMonitor.enabled=false \
+            --wait --timeout=10m
+          
+          echo "✅ PostgreSQL deployed successfully!"
+
+      - name: Deploy StudyMate Application
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
           OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
           DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
         run: |
-          echo "🚀 Deploying StudyMate to Kubernetes..."
+          echo "🚀 Deploying StudyMate Application..."
           
-          # Force clean install to avoid upgrade conflicts
-          if helm status studymate -n studymate > /dev/null 2>&1; then
-            echo "📦 Uninstalling existing release to avoid conflicts..."
-            helm uninstall studymate -n studymate --wait
-            echo "⏳ Waiting for resources cleanup..."
-            sleep 30
-          fi
-          echo "📦 Installing fresh Helm release..."
-          kubectl create namespace studymate --dry-run=client -o yaml | kubectl apply -f -
-          helm install studymate ./infra/helm -n studymate \
+          # Use helm upgrade --install for better permission handling
+          helm upgrade --install studymate ./infra/helm \
+            --namespace studymate \
+            --create-namespace \
             --set ingress.host="${DOMAIN}" \
             --set client.image.tag="k8s-latest" \
-            --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
-            --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
+            --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
+            --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
             --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
             --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
-            --wait --timeout=10m
+            --wait --timeout=15m
 
       - name: Verify deployment
         run: |

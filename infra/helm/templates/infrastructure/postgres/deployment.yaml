@@ -1,3 +1,4 @@
+{{- if .Values.postgres.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -61,4 +62,5 @@ spec:
           emptyDir: {}
         - name: init-scripts
           configMap:
-            name: {{ include "studymate.fullname" . }}-postgres-init 
+            name: {{ include "studymate.fullname" . }}-postgres-init
+{{- end }} 
