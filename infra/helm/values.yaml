@@ -7,7 +7,7 @@ authService:
   image:
     repository: ghcr.io/aet-devops25/team-3/auth-service
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8086  # Changed from 8083 to avoid conflict with weaviate
@@ -43,7 +43,7 @@ documentService:
   image:
     repository: ghcr.io/aet-devops25/team-3/document-service
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8084
@@ -81,7 +81,7 @@ genaiService:
   image:
     repository: ghcr.io/aet-devops25/team-3/genai-service
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8085
@@ -109,8 +109,8 @@ genaiService:
 client:
   image:
     repository: ghcr.io/aet-devops25/team-3/client
-    tag: k8s-latest
-    pullPolicy: Always
+    tag: latest
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 80
@@ -125,7 +125,7 @@ genAi:
   image:
     repository: ghcr.io/aet-devops25/team-3/genai
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8081

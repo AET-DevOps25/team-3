@@ -114,12 +114,11 @@ services:
       - "traefik.http.routers.genai-backend.entrypoints=web"
       - "traefik.http.routers.genai-backend.priority=50"
       - "traefik.http.services.genai-backend.loadbalancer.server.port=8081"
+    env_file:
+      - ./genAi/.env
     environment:
       - WEAVIATE_HOST=weaviate
       - WEAVIATE_PORT=8087
-      - OPEN_WEBUI_API_KEY_CHAT=${OPEN_WEBUI_API_KEY_CHAT}
-      - OPEN_WEBUI_API_KEY_GEN=${OPEN_WEBUI_API_KEY_GEN}
-      
 
     depends_on:
       - weaviate
