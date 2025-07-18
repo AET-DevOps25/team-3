@@ -181,7 +181,7 @@ jobs:
         cache: 'gradle'
         
     - name: Make gradlew executable
-      run: chmod +x microservices/auth-service/gradlew
+      run: chmod +x server/auth-service/gradlew
       
     - name: Run tests
       env:
@@ -190,7 +190,7 @@ jobs:
         SPRING_DATASOURCE_USERNAME: test
         SPRING_DATASOURCE_PASSWORD: test
       run: |
-        cd microservices/auth-service
+        cd server/auth-service
         ./gradlew test --info --stacktrace
         
     - name: Archive test results
@@ -199,8 +199,8 @@ jobs:
       with:
         name: auth-service-test-results
         path: |
-          microservices/auth-service/build/reports/tests/test/
-          microservices/auth-service/build/test-results/test/
+          server/auth-service/build/reports/tests/test/
+          server/auth-service/build/test-results/test/
           
   # Job 4: Document Service Tests (Kotlin/Spring Boot)
   document-service-tests:
@@ -235,7 +235,7 @@ jobs:
         cache: 'gradle'
         
     - name: Make gradlew executable
-      run: chmod +x microservices/document-service/gradlew
+      run: chmod +x server/document-service/gradlew
       
     - name: Run tests
       env:
@@ -244,7 +244,7 @@ jobs:
         SPRING_DATASOURCE_USERNAME: test
         SPRING_DATASOURCE_PASSWORD: test
       run: |
-        cd microservices/document-service
+        cd server/document-service
         ./gradlew test --info --stacktrace
         
     - name: Archive test results
@@ -253,8 +253,8 @@ jobs:
       with:
         name: document-service-test-results
         path: |
-          microservices/document-service/build/reports/tests/test/
-          microservices/document-service/build/test-results/test/
+          server/document-service/build/reports/tests/test/
+          server/document-service/build/test-results/test/
           
   # Job 5: Integration Tests
   integration-tests:
@@ -324,7 +324,7 @@ jobs:
         nohup python -m uvicorn main:app --host 0.0.0.0 --port 8081 &
         
         # Start microservices
-        cd ../microservices/auth-service
+        cd ../server/auth-service
         chmod +x gradlew
         nohup ./gradlew bootRun &
         
