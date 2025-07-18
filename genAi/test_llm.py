@@ -99,12 +99,14 @@ class TestStudyLLM:
         mock_response = Mock()
         mock_response.content = "Mock chat response"
         mock_chat_llm.ainvoke.return_value = mock_response
-        
+
         with patch("llm.RAGHelper", return_value=mock_rag_helper):
             llm = StudyLLM(temp_pdf_file)
-            
+
             # Mock the entire prompt method to avoid complex chain mocking
-            with patch.object(llm, "prompt", return_value="Mock chat response") as mock_prompt:
+            with patch.object(
+                llm, "prompt", return_value="Mock chat response"
+            ) as mock_prompt:
                 result = await llm.prompt("Test question")
 
                 # Verify the prompt method was called
@@ -136,7 +138,9 @@ class TestStudyLLM:
             llm = StudyLLM(temp_pdf_file)
 
             # Mock the prompt method to simulate an error
-            with patch.object(llm, "prompt", side_effect=Exception("LLM processing failed")):
+            with patch.object(
+                llm, "prompt", side_effect=Exception("LLM processing failed")
+            ):
                 with pytest.raises(Exception, match="LLM processing failed"):
                     await llm.prompt("Test question")
 
@@ -356,7 +360,9 @@ class TestStudyLLM:
             llm = StudyLLM(temp_pdf_file)
 
             # Mock the prompt method and verify it was called
-            with patch.object(llm, "prompt", return_value="Mock response") as mock_prompt:
+            with patch.object(
+                llm, "prompt", return_value="Mock response"
+            ) as mock_prompt:
                 await llm.prompt("Test question")
 
                 # Verify the prompt method was called with the test question
@@ -365,7 +371,13 @@ class TestStudyLLM:
     def test_llm_configuration(self):
         """Test that LLM instances are configured correctly"""
         # Test that class-level LLM instances are configured
-        with patch.dict(os.environ, {"OPEN_WEBUI_API_KEY_CHAT": "test-key", "OPEN_WEBUI_API_KEY_GEN": "test-key"}):
+        with patch.dict(
+            os.environ,
+            {
+                "OPEN_WEBUI_API_KEY_CHAT": "test-key",
+                "OPEN_WEBUI_API_KEY_GEN": "test-key",
+            },
+        ):
             assert StudyLLM._get_chat_llm() is not None
             assert StudyLLM._get_generation_llm() is not None
 
@@ -390,9 +402,12 @@ class TestStudyLLM:
             llm = StudyLLM(temp_pdf_file)
 
             # Mock the methods to return expected responses
-            with patch.object(llm, "prompt", return_value="Mock response") as mock_prompt, \
-                 patch.object(llm, "summarize", return_value="Mock summary") as mock_summarize:
-                
+            with patch.object(
+                llm, "prompt", return_value="Mock response"
+            ) as mock_prompt, patch.object(
+                llm, "summarize", return_value="Mock summary"
+            ) as mock_summarize:
+
                 # Run concurrent operations
                 tasks = [
                     llm.prompt("Question 1"),
@@ -471,7 +486,13 @@ class TestStudyLLMIntegration:
         """Test that environment variables are properly loaded"""
         # Test that environment variables are used for LLM configuration
         # This would require checking the actual LLM configuration
-        with patch.dict(os.environ, {"OPEN_WEBUI_API_KEY_CHAT": "test-key", "OPEN_WEBUI_API_KEY_GEN": "test-key"}):
+        with patch.dict(
+            os.environ,
+            {
+                "OPEN_WEBUI_API_KEY_CHAT": "test-key",
+                "OPEN_WEBUI_API_KEY_GEN": "test-key",
+            },
+        ):
             assert StudyLLM._get_chat_llm() is not None
             assert StudyLLM._get_generation_llm() is not None
 
