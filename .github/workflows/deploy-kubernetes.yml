@@ -23,8 +23,8 @@ jobs:
       HELM_NAMESPACE: studymate
       DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
       IMAGE_TAG: k8s-latest
-      POSTGRES_PERSISTENCE_SIZE: 8Gi
-      WEAVIATE_PERSISTENCE_SIZE: 10Gi
+      POSTGRES_PERSISTENCE_SIZE: 1Gi
+      WEAVIATE_PERSISTENCE_SIZE: 1Gi
       POSTGRES_RELEASE_NAME: studymate-postgres
       POSTGRES_CHART_PATH: bitnami/postgresql
       APP_RELEASE_NAME: studymate

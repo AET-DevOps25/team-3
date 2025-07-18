@@ -110,10 +110,10 @@ client:
     port: 80
     targetPort: 80
   replicaCount: 1
-  apiBaseUrl: "https://studymate.student.k8s.aet.cit.tum.de"
+  apiBaseUrl: "https://{{ .Values.ingress.host }}"
   env:
     - name: VITE_API_BASE_URL
-      value: "https://studymate.student.k8s.aet.cit.tum.de"
+      value: "https://{{ .Values.ingress.host }}"
 
 genAi:
   image:
