@@ -146,7 +146,7 @@ genAi:
     - name: WEAVIATE_HOST
       value: "{{ include \"studymate.fullname\" . }}-weaviate"
     - name: WEAVIATE_PORT
-      value: "8083"
+      value: "8087"
 
     # LangSmith Configuration
     - name: LANGSMITH_TRACING
@@ -195,7 +195,7 @@ weaviate:
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-    port: 8083
+    port: 8087  # Changed from 8083 to avoid conflict with auth service
     targetPort: 8080
   replicaCount: 1
   persistence:
