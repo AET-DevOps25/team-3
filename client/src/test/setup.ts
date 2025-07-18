@@ -116,8 +116,9 @@ Object.defineProperty(window, 'matchMedia', {
 window.scrollTo = vi.fn() as any
 
 // Mock File and FileReader
-global.File = class MockFile {
+global.File = class MockFile extends Blob {
   constructor(public fileParts: any[], public fileName: string, public options: any = {}) {
+    super(fileParts, options)
     this.name = fileName
     // Calculate size based on content
     this.size = fileParts.reduce((total, part) => {
