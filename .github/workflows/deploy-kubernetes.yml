@@ -32,8 +32,12 @@ jobs:
       HELM_NAMESPACE: studymate
       DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
       IMAGE_TAG: k8s-latest
-      POSTGRES_PERSISTENCE_SIZE: 8Gi
-      WEAVIATE_PERSISTENCE_SIZE: 10Gi
+      POSTGRES_PERSISTENCE_SIZE: 1Gi
+      WEAVIATE_PERSISTENCE_SIZE: 1Gi
+      POSTGRES_RELEASE_NAME: studymate-postgres
+      POSTGRES_CHART_PATH: bitnami/postgresql
+      APP_RELEASE_NAME: studymate
+      APP_CHART_PATH: ./infra/helm
     
     steps:
       - name: Checkout code
@@ -106,8 +110,6 @@ jobs:
       - name: Deploy PostgreSQL with Bitnami
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          HELM_RELEASE_NAME: studymate-postgres
-          CHART_PATH: bitnami/postgresql
         run: |
           echo "🗄️  Deploying PostgreSQL with Bitnami..."
           
@@ -119,7 +121,7 @@ jobs:
           kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
           
           # Deploy Bitnami PostgreSQL
-          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+          helm upgrade --install ${{ env.POSTGRES_RELEASE_NAME }} ${{ env.POSTGRES_CHART_PATH }} \
             --namespace ${{ env.HELM_NAMESPACE }} \
             --set auth.postgresPassword="${POSTGRES_PASSWORD}" \
             --set auth.database=studymate \
@@ -138,13 +140,11 @@ jobs:
           OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
-          HELM_RELEASE_NAME: studymate
-          CHART_PATH: ./infra/helm
         run: |
           echo "🚀 Deploying StudyMate Application..."
           
           # Use helm upgrade --install for better permission handling
-          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+          helm upgrade --install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
             --namespace ${{ env.HELM_NAMESPACE }} \
             --create-namespace \
             --set ingress.host=${{ env.DOMAIN }} \
@@ -159,12 +159,12 @@ jobs:
       - name: Verify deployment
         run: |
           echo "🔍 Checking deployment status..."
-          kubectl get pods -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.HELM_RELEASE_NAME }}
-          kubectl get services -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.HELM_RELEASE_NAME }}
+          kubectl get pods -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }}
+          kubectl get services -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }}
           kubectl get ingress -n ${{ env.HELM_NAMESPACE }}
           
           echo "🏥 Waiting for pods to be ready..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${{ env.HELM_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "Some pods may still be starting"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "Some pods may still be starting"
 
       - name: Get access information
         run: |
@@ -173,6 +173,6 @@ jobs:
           echo ""
           echo "📊 Useful commands:"
           echo "kubectl get pods -n ${{ env.HELM_NAMESPACE }}"
-          echo "kubectl logs -f deployment/${{ env.HELM_RELEASE_NAME }}-client -n ${{ env.HELM_NAMESPACE }}"
-          echo "kubectl logs -f deployment/${{ env.HELM_RELEASE_NAME }}-auth-service -n ${{ env.HELM_NAMESPACE }}"
-          echo "kubectl port-forward svc/${{ env.HELM_RELEASE_NAME }}-client 8080:80 -n ${{ env.HELM_NAMESPACE }}" 
+          echo "kubectl logs -f deployment/${{ env.APP_RELEASE_NAME }}-client -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/${{ env.APP_RELEASE_NAME }}-auth-service -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl port-forward svc/${{ env.APP_RELEASE_NAME }}-client 8080:80 -n ${{ env.HELM_NAMESPACE }}" 
