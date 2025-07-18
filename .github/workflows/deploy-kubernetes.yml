@@ -84,13 +84,17 @@ jobs:
             echo "❌ OPEN_WEBUI_API_KEY_GEN secret is not set"
             exit 1
           fi
+          if [ -z "${{ secrets.POSTGRES_PASSWORD }}" ]; then
+            echo "❌ POSTGRES_PASSWORD secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.JWT_SECRET }}" ]; then
+            echo "❌ JWT_SECRET secret is not set"
+            exit 1
+          fi
           echo "✅ All required secrets are present"
 
-      - name: Generate JWT Secret
-        id: jwt-secret
-        run: |
-          JWT_SECRET=$(openssl rand -base64 64)
-          echo "jwt_secret=${JWT_SECRET}" >> $GITHUB_OUTPUT
+# JWT Secret is now provided via GitHub secrets
 
       - name: Deploy with Helm
         env:
@@ -107,8 +111,8 @@ jobs:
             helm upgrade studymate ./infra/helm -n studymate \
               --set ingress.host="${DOMAIN}" \
               --set client.image.tag="k8s-latest" \
-              --set-string secrets.postgres.data.password="$(openssl rand -base64 32)" \
-              --set-string secrets.auth.data.jwtSecret="${{ steps.jwt-secret.outputs.jwt_secret }}" \
+              --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
               --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
               --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
               --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
@@ -119,8 +123,8 @@ jobs:
             helm install studymate ./infra/helm -n studymate \
               --set ingress.host="${DOMAIN}" \
               --set client.image.tag="k8s-latest" \
-              --set-string secrets.postgres.data.password="$(openssl rand -base64 32)" \
-              --set-string secrets.auth.data.jwtSecret="${{ steps.jwt-secret.outputs.jwt_secret }}" \
+              --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
               --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
               --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
               --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \

@@ -186,7 +186,7 @@ postgres:
           name: postgres-secret
           key: password
     - name: POSTGRES_DB
-      value: mydb
+      value: studymate
 
 weaviate:
   image:
@@ -250,7 +250,7 @@ secrets:
     existingSecret: ""  # Name of existing secret to use instead of creating new one
     data:
       username: postgres
-      password: "securePostgresPassword123!"  # HARDCODED for development
+      password: "placeholder-postgres-password"  # Overridden by GitHub secret via --set-string
 
   # Auth service secrets (shared JWT secret)
   auth:
@@ -258,7 +258,7 @@ secrets:
     name: auth-secret
     existingSecret: ""  # Name of existing secret to use instead of creating new one
     data:
-      jwtSecret: "mySecretKey1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"  # HARDCODED for development
+      jwtSecret: "placeholder-jwt-secret"  # Overridden by GitHub secret via --set-string
 
   genai:
     create: true

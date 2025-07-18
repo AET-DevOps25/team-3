@@ -57,6 +57,18 @@ if [ -z "$OPEN_WEBUI_API_KEY_GEN" ]; then
     exit 1
 fi
 
+if [ -z "$POSTGRES_PASSWORD" ]; then
+    print_error "POSTGRES_PASSWORD is not set"
+    echo "Set it with: export POSTGRES_PASSWORD='your-postgres-password'"
+    exit 1
+fi
+
+if [ -z "$JWT_SECRET" ]; then
+    print_error "JWT_SECRET is not set"
+    echo "Set it with: export JWT_SECRET='your-jwt-secret'"
+    exit 1
+fi
+
 print_success "All required secrets are present"
 
 # Check prerequisites
@@ -121,6 +133,8 @@ print_status "Domain: $DOMAIN"
 helm upgrade --install "$RELEASE_NAME" "$CHART_PATH" \
     --namespace "$NAMESPACE" \
     --create-namespace \
+    --set-string secrets.postgres.data.password="$POSTGRES_PASSWORD" \
+    --set-string secrets.auth.data.jwtSecret="$JWT_SECRET" \
     --set-string secrets.genai.data.openWebUiApiKeyChat="$OPEN_WEBUI_API_KEY_CHAT" \
     --set-string secrets.genai.data.openWebUiApiKeyGen="$OPEN_WEBUI_API_KEY_GEN" \
     --set-string secrets.genai.data.langsmithApiKey="$LANGSMITH_API_KEY" \
