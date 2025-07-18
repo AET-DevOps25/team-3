@@ -55,7 +55,8 @@ jobs:
 
       - name: Build client (validation only)
         run: |
-          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
+          # Build for validation without specific API URL
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/client:validation-${COMMIT_SHA} ./client
           echo "✅ Client build successful"
 
       - name: Build genai (validation only)

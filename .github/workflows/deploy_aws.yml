@@ -50,10 +50,10 @@ jobs:
           docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./server/eureka-server
           docker push ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA}
 
-      - name: Build and push client
+      - name: Build and push client for EC2
         run: |
-          docker build --platform linux/amd64 --build-arg VITE_API_BASE_URL=https://studymate-tum.xyz -t ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ./client
-          docker push ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA}
+          docker build --platform linux/amd64 --build-arg VITE_API_BASE_URL=https://studymate-tum.xyz -t ghcr.io/aet-devops25/team-3/client:ec2-${COMMIT_SHA} ./client
+          docker push ghcr.io/aet-devops25/team-3/client:ec2-${COMMIT_SHA}
 
       - name: Build and push genai
         run: |
@@ -81,10 +81,10 @@ jobs:
           docker tag ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/eureka-server:latest
           docker push ghcr.io/aet-devops25/team-3/eureka-server:latest
 
-      - name: Tag and push client as latest
+      - name: Tag and push client as ec2-latest
         run: |
-          docker tag ghcr.io/aet-devops25/team-3/client:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/client:latest
-          docker push ghcr.io/aet-devops25/team-3/client:latest
+          docker tag ghcr.io/aet-devops25/team-3/client:ec2-${COMMIT_SHA} ghcr.io/aet-devops25/team-3/client:ec2-latest
+          docker push ghcr.io/aet-devops25/team-3/client:ec2-latest
 
       - name: Tag and push genai as latest
         run: |
