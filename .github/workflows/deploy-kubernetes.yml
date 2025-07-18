@@ -1,0 +1,151 @@
+name: Deploy StudyMate to Kubernetes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'server/**'
+      - 'genAi/**'
+      - 'infra/helm/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+        - dev
+        - prod
+      domain:
+        description: 'Domain name for deployment'
+        required: true
+        default: 'studymate.student.k8s.aet.cit.tum.de'
+
+jobs:
+  deploy-kubernetes:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          cat > ~/.kube/config << 'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: "student"
+            cluster:
+              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+          
+          users:
+          - name: "student"
+            user:
+              token: "kubeconfig-u-g7fbq4tzcsm6z76:btctl45d2sfw7fvdzplvdfzr6cnwbnnmzwtxpzjq4xjbnlp5bmrvzs"
+          
+          contexts:
+          - name: "student"
+            context:
+              user: "student"
+              cluster: "student"
+          
+          current-context: "student"
+          EOF
+          chmod 600 ~/.kube/config
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0'
+
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: '3.12.0'
+
+      - name: Verify Kubernetes connection
+        run: |
+          echo "🔍 Testing Kubernetes connection..."
+          kubectl cluster-info || echo "⚠️  Cluster info not available, but continuing..."
+          kubectl get namespaces || echo "⚠️  Cannot list namespaces, but continuing..."
+
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" ]; then
+            echo "❌ OPEN_WEBUI_API_KEY_CHAT secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" ]; then
+            echo "❌ OPEN_WEBUI_API_KEY_GEN secret is not set"
+            exit 1
+          fi
+          echo "✅ All required secrets are present"
+
+      - name: Generate JWT Secret
+        id: jwt-secret
+        run: |
+          JWT_SECRET=$(openssl rand -base64 64)
+          echo "jwt_secret=${JWT_SECRET}" >> $GITHUB_OUTPUT
+
+      - name: Deploy with Helm
+        env:
+          OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}
+          OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+          DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
+        run: |
+          echo "🚀 Deploying StudyMate to Kubernetes..."
+          
+          # Try to upgrade first, if it fails, install
+          if helm status studymate -n studymate > /dev/null 2>&1; then
+            echo "📦 Upgrading existing Helm release..."
+            helm upgrade studymate ./infra/helm -n studymate \
+              --set ingress.host="${DOMAIN}" \
+              --set client.image.tag="k8s-latest" \
+              --set-string secrets.postgres.data.password="$(openssl rand -base64 32)" \
+              --set-string secrets.auth.data.jwtSecret="${{ steps.jwt-secret.outputs.jwt_secret }}" \
+              --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
+              --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
+              --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
+              --wait --timeout=10m
+          else
+            echo "📦 Installing new Helm release..."
+            kubectl create namespace studymate --dry-run=client -o yaml | kubectl apply -f -
+            helm install studymate ./infra/helm -n studymate \
+              --set ingress.host="${DOMAIN}" \
+              --set client.image.tag="k8s-latest" \
+              --set-string secrets.postgres.data.password="$(openssl rand -base64 32)" \
+              --set-string secrets.auth.data.jwtSecret="${{ steps.jwt-secret.outputs.jwt_secret }}" \
+              --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
+              --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
+              --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
+              --wait --timeout=10m
+          fi
+
+      - name: Verify deployment
+        run: |
+          echo "🔍 Checking deployment status..."
+          kubectl get pods -n studymate -l app.kubernetes.io/instance=studymate
+          kubectl get services -n studymate -l app.kubernetes.io/instance=studymate
+          kubectl get ingress -n studymate
+          
+          echo "🏥 Waiting for pods to be ready..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=studymate -n studymate --timeout=300s || echo "Some pods may still be starting"
+
+      - name: Get access information
+        env:
+          DOMAIN: ${{ github.event.inputs.domain || 'studymate.student.k8s.aet.cit.tum.de' }}
+        run: |
+          echo "🌐 StudyMate Deployment Complete!"
+          echo "🔗 Application URL: https://${DOMAIN}"
+          echo ""
+          echo "📊 Useful commands:"
+          echo "kubectl get pods -n studymate"
+          echo "kubectl logs -f deployment/studymate-client -n studymate"
+          echo "kubectl logs -f deployment/studymate-auth-service -n studymate"
+          echo "kubectl port-forward svc/studymate-client 8080:80 -n studymate" 

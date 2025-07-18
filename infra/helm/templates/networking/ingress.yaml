@@ -1,0 +1,66 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "studymate.fullname" . }}
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if and .Values.ingress.tls .Values.ingress.host }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.teamid }}-tls
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.host }}
+    - host: {{ .Values.ingress.host }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-client
+                port:
+                  number: {{ .Values.client.service.port }}
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-auth-service
+                port:
+                  number: {{ .Values.authService.service.port }}
+          - path: /api/documents
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-document-service
+                port:
+                  number: {{ .Values.documentService.service.port }}
+          - path: /api/genai
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-genai-service
+                port:
+                  number: {{ .Values.genaiService.service.port }}
+          - path: /genai-backend
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-genai
+                port:
+                  number: {{ .Values.genAi.service.port }}
+{{- end }} 
