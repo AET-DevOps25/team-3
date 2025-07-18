@@ -12,21 +12,63 @@ load_dotenv()
 
 
 class StudyLLM:
-    # for chat
-    chat_llm = ChatOpenAI(
-        model="llama3.3:latest",
-        temperature=0.5,
-        api_key=os.getenv("OPEN_WEBUI_API_KEY_CHAT"),
-        base_url="https://gpu.aet.cit.tum.de/api/",
-    )
+    # Class-level attributes for lazy initialization
+    _chat_llm = None
+    _generation_llm = None
 
-    # For summaries, quizzes, flashcards
-    generation_llm = ChatOpenAI(
-        model="llama3.3:latest",
-        temperature=0.5,
-        api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
-        base_url="https://gpu.aet.cit.tum.de/api/",
-    )
+    @classmethod
+    def _get_chat_llm(cls):
+        """Lazy initialization of chat LLM"""
+        if cls._chat_llm is None:
+            cls._chat_llm = ChatOpenAI(
+                model="llama3.3:latest",
+                temperature=0.5,
+                api_key=os.getenv("OPEN_WEBUI_API_KEY_CHAT"),
+                base_url="https://gpu.aet.cit.tum.de/api/",
+            )
+        return cls._chat_llm
+
+    @classmethod
+    def _get_generation_llm(cls):
+        """Lazy initialization of generation LLM"""
+        if cls._generation_llm is None:
+            cls._generation_llm = ChatOpenAI(
+                model="llama3.3:latest",
+                temperature=0.5,
+                api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
+                base_url="https://gpu.aet.cit.tum.de/api/",
+            )
+        return cls._generation_llm
+
+    @property
+    def chat_llm(self):
+        """Get the chat LLM instance"""
+        return self._get_chat_llm()
+
+    @chat_llm.setter
+    def chat_llm(self, value):
+        """Set the chat LLM instance (for testing)"""
+        StudyLLM._chat_llm = value
+
+    @chat_llm.deleter
+    def chat_llm(self):
+        """Reset the chat LLM instance (for testing)"""
+        StudyLLM._chat_llm = None
+
+    @property
+    def generation_llm(self):
+        """Get the generation LLM instance"""
+        return self._get_generation_llm()
+
+    @generation_llm.setter
+    def generation_llm(self, value):
+        """Set the generation LLM instance (for testing)"""
+        StudyLLM._generation_llm = value
+
+    @generation_llm.deleter
+    def generation_llm(self):
+        """Reset the generation LLM instance (for testing)"""
+        StudyLLM._generation_llm = None
 
     def __init__(self, doc_path: str):
         base_system_template = (
