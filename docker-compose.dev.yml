@@ -1,0 +1,153 @@
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - auth-service
+    networks:
+      - dev-network
+
+  auth-service:
+    build:
+      context: ./server/auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    restart: unless-stopped
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - postgres
+    networks:
+      - dev-network
+
+  document-service:
+    build:
+      context: ./server/document-service
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8084"
+    restart: unless-stopped
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/document_db
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - postgres
+    networks:
+      - dev-network
+
+  genai-service:
+    build:
+      context: ./server/genai-service
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+    restart: unless-stopped
+    environment:
+      - GENAI_BACKEND_URL=http://genai:8081
+      - DOCUMENT_SERVICE_URL=http://document-service:8084
+    depends_on:
+      - genai
+    networks:
+      - dev-network
+
+  genai:
+    build:
+      context: ./genai
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+    environment:
+      - WEAVIATE_HOST=weaviate
+      - WEAVIATE_PORT=8090
+      - OPEN_WEBUI_API_KEY_CHAT=dummy-key-chat
+      - OPEN_WEBUI_API_KEY_GEN=dummy-key-gen
+      - LANGSMITH_TRACING=true
+      - LANGSMITH_ENDPOINT=https://api.smith.langchain.com
+      - LANGSMITH_API_KEY=dummy-langsmith-key
+      - LANGSMITH_PROJECT=studymate
+    depends_on:
+      - weaviate
+    networks:
+      - dev-network
+
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_MULTIPLE_DATABASES: auth_db,document_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database_setup_microservices.sql:/docker-entrypoint-initdb.d/database_setup_microservices.sql
+    networks:
+      - dev-network
+
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8090'
+      - --scheme
+      - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
+    ports:
+      - "8090:8090"
+      - "50051:50051"
+    restart: unless-stopped
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      ENABLE_API_BASED_MODULES: 'true'
+      CLUSTER_HOSTNAME: 'node1'
+    networks:
+      - dev-network
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - dev-network
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+    networks:
+      - dev-network
+
+volumes:
+  pgdata:
+  weaviate_data:
+  grafana_data:
+
+networks:
+  dev-network:
