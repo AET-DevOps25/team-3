@@ -1,0 +1,46 @@
+{{- if .Values.monitoring.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "studymate.fullname" . }}-prometheus-config
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    rule_files:
+      # - "first_rules.yml"
+      # - "second_rules.yml"
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'auth-service'
+        static_configs:
+          - targets: ['{{ include "studymate.fullname" . }}-auth-service:{{ .Values.authService.service.port }}']
+        metrics_path: '/actuator/prometheus'
+
+      - job_name: 'document-service'
+        static_configs:
+          - targets: ['{{ include "studymate.fullname" . }}-document-service:{{ .Values.documentService.service.port }}']
+        metrics_path: '/actuator/prometheus'
+
+      - job_name: 'genai-service'
+        static_configs:
+          - targets: ['{{ include "studymate.fullname" . }}-genai-service:{{ .Values.genaiService.service.port }}']
+        metrics_path: '/actuator/prometheus'
+
+      - job_name: 'genai-backend'
+        static_configs:
+          - targets: ['{{ include "studymate.fullname" . }}-genai:{{ .Values.genAi.service.port }}']
+        metrics_path: '/metrics'
+
+
+{{- end }} 

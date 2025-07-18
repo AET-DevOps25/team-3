@@ -1,0 +1,271 @@
+# This file contains the default values for the studymate App Helm chart.
+
+teamid: studymate
+
+# Auth Service - Authentication microservice
+authService:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/auth-service
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8086  # Changed from 8083 to avoid conflict with weaviate
+    targetPort: 8083
+  replicaCount: 1
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: docker
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/auth_db"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: auth-secret
+          key: jwt-secret
+    - name: JWT_EXPIRATION
+      value: "86400000"
+    - name: JWT_REFRESH_EXPIRATION
+      value: "604800000"
+
+# Document Service - Document management microservice
+documentService:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/document-service
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8084
+    targetPort: 8084
+  replicaCount: 1
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: docker
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://{{ include \"studymate.fullname\" . }}-postgres:5432/document_db"
+    - name: SPRING_DATASOURCE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: auth-secret
+          key: jwt-secret
+    - name: AUTH_SERVICE_URL
+      value: "http://{{ include \"studymate.fullname\" . }}-auth-service:8086"
+    - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
+      value: "50MB"
+    - name: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
+      value: "100MB"
+
+# GenAI Service - GenAI orchestration microservice (Kotlin)
+genaiService:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/genai-service
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8085
+    targetPort: 8085
+  replicaCount: 1
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: docker
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: auth-secret
+          key: jwt-secret
+    - name: AUTH_SERVICE_URL
+      value: "http://{{ include \"studymate.fullname\" . }}-auth-service:8086"
+    - name: DOCUMENT_SERVICE_URL
+      value: "http://{{ include \"studymate.fullname\" . }}-document-service:8084"
+    - name: GENAI_BACKEND_URL
+      value: "http://{{ include \"studymate.fullname\" . }}-genai:8081"
+    - name: RATE_LIMIT_REQUESTS_PER_MINUTE
+      value: "60"
+    - name: SERVER_TOMCAT_THREADS_MAX
+      value: "200"
+
+client:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/client
+    tag: k8s-latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+  replicaCount: 1
+  apiBaseUrl: "https://studymate.student.k8s.aet.cit.tum.de"
+  env:
+    - name: VITE_API_BASE_URL
+      value: "https://studymate.student.k8s.aet.cit.tum.de"
+
+genAi:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/genai
+    tag: latest
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  replicaCount: 1
+  env:
+    - name: OPEN_WEBUI_API_KEY_CHAT
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: open-webui-api-key-chat
+    - name: OPEN_WEBUI_API_KEY_GEN
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: open-webui-api-key-gen
+
+    - name: WEAVIATE_HOST
+      value: "{{ include \"studymate.fullname\" . }}-weaviate"
+    - name: WEAVIATE_PORT
+      value: "8083"
+
+    # LangSmith Configuration
+    - name: LANGSMITH_TRACING
+      value: "true"
+    - name: LANGSMITH_ENDPOINT
+      value: "https://api.smith.langchain.com"
+    - name: LANGSMITH_PROJECT
+      value: "studymate"
+    - name: LANGSMITH_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: langsmith-api-key
+
+postgres:
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  replicaCount: 1
+  persistence:
+    size: 8Gi
+    storageClass: ""  # Use default storage class
+  env:
+    - name: POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: username
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: password
+    - name: POSTGRES_DB
+      value: mydb
+
+weaviate:
+  image:
+    repository: cr.weaviate.io/semitechnologies/weaviate
+    tag: "1.30.3"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8083
+    targetPort: 8080
+  replicaCount: 1
+  persistence:
+    size: 10Gi
+    storageClass: ""  # Use default storage class
+  env:
+    - name: QUERY_DEFAULTS_LIMIT
+      value: "25"
+    - name: AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED
+      value: "true"
+    - name: PERSISTENCE_DATA_PATH
+      value: "/var/lib/weaviate"
+    - name: ENABLE_API_BASED_MODULES
+      value: "true"
+    - name: CLUSTER_HOSTNAME
+      value: "node1"
+    - name: HTTP_PORT
+      value: "8080"
+    - name: GRPC_PORT
+      value: "50051"
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "studymate.student.k8s.aet.cit.tum.de"  # Student Rancher domain
+  tls: true
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Student Rancher specific annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+# Monitoring configuration
+monitoring:
+  prometheus:
+    enabled: true
+    image:
+      repository: prom/prometheus
+      tag: "latest"
+      pullPolicy: IfNotPresent
+    persistence:
+      size: 5Gi
+      storageClass: ""  # Use default storage class
+
+# Secret management configuration
+secrets:
+  postgres:
+    create: true
+    name: postgres-secret
+    # Use external secret management or set via --set-string
+    # Never commit actual secret values to version control
+    existingSecret: ""  # Name of existing secret to use instead of creating new one
+    data:
+      username: postgres
+      password: "securePostgresPassword123!"  # HARDCODED for development
+
+  # Auth service secrets (shared JWT secret)
+  auth:
+    create: true
+    name: auth-secret
+    existingSecret: ""  # Name of existing secret to use instead of creating new one
+    data:
+      jwtSecret: "mySecretKey1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"  # HARDCODED for development
+
+  genai:
+    create: true
+    name: genai-secret
+    existingSecret: ""  # Name of existing secret to use instead of creating new one
+    data:
+      openWebUiApiKeyChat: "placeholder-chat-api-key"  # REQUIRED: Set via GitHub secret OPEN_WEBUI_API_KEY_CHAT
+      openWebUiApiKeyGen: "placeholder-gen-api-key"  # REQUIRED: Set via GitHub secret OPEN_WEBUI_API_KEY_GEN
+      langsmithApiKey: "placeholder-langsmith-api-key"  # OPTIONAL: Set via GitHub secret LANGSMITH_API_KEY
+      

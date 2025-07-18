@@ -127,22 +127,22 @@ docker-compose -f docker-compose.microservices.yml down
 ### Individual Service Building
 ```bash
 # Build auth service
-cd microservices/auth-service
+cd server/auth-service
 ./gradlew build
 docker build -t auth-service .
 
 # Build document service
-cd microservices/document-service
+cd server/document-service
 ./gradlew build
 docker build -t document-service .
 
 # Build GenAI service
-cd microservices/genai-service
+cd server/genai-service
 ./gradlew build
 docker build -t genai-service .
 
 # Build Eureka server
-cd microservices/eureka-server
+cd server/eureka-server
 ./gradlew build
 docker build -t eureka-server .
 ```

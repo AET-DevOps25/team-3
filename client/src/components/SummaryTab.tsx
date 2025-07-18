@@ -366,10 +366,10 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                 {/* Summary Text */}
                 <div>
                   <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
-                  <div className="prose prose-sm max-w-none">
-                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
+                  <div className="prose prose-sm max-w-none text-gray-700 leading-relaxed">
+                    <ReactMarkdown>
                       {item.summary || 'Summary is ready but content is not available. Please refresh or try again.'}
-                    </p>
+                    </ReactMarkdown>
                   </div>
                 </div>
 
