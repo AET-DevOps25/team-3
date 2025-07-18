@@ -3,7 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: studymate-genai-dev
+    container_name: genai-genai-dev
     restart: unless-stopped
     ports:
       - "8081:8081"  # FastAPI GenAI service
@@ -20,7 +20,7 @@ services:
 
   weaviate:
     image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
-    container_name: studymate-weaviate-dev
+    container_name: genai-weaviate-dev
     restart: unless-stopped
     command:
       - --host
