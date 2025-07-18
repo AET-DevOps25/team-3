@@ -1,4 +1,4 @@
-name: Build StudyMate Images
+name: Build StudyMate Images # TODO: remove file?
 
 on:
   push:

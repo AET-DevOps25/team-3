@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # Run docker compose with optional flags
-docker compose -f docker-compose.dev-no-traefik.yml down
+docker compose -f docker-compose.dev.yml down
