@@ -119,8 +119,8 @@ class RAGHelper:
     def _split_and_attach_metadata(self,
                                    documents: list[Document],
                                    metadata: dict,
-                                   chunk_size: int = 512,
-                                   chunk_overlap: int = 200) -> list[Document]:
+                                   chunk_size: int = 500,
+                                   chunk_overlap: int = 75) -> list[Document]:
         """
         Split documents into smaller chunks and attach metadata.
 
@@ -175,8 +175,8 @@ class RAGHelper:
             generation_chunks = self._split_and_attach_metadata(
                 [combined_doc],
                 doc_metadata,
-                chunk_size=4096,
-                chunk_overlap=200
+                chunk_size=4000,
+                chunk_overlap=0 # no embedding, so no overlap needed
             )
             # Store generation chunks
             self._store_generation_chunks(generation_chunks)
