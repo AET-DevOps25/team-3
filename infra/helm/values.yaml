@@ -193,8 +193,9 @@ weaviate:
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-    port: 8087  # Changed from 8083 to avoid conflict with auth service
+    port: 8087  
     targetPort: 8080
+    grpcPort: 50051
   replicaCount: 1
   persistence:
     size: 10Gi
