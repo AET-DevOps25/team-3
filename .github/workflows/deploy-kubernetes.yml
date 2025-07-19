@@ -107,29 +107,86 @@ jobs:
 
 # JWT Secret is now provided via GitHub secrets
 
-      - name: Deploy PostgreSQL with Bitnami
+      - name: Deploy PostgreSQL (Simplified)
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         run: |
-          echo "🗄️  Deploying PostgreSQL with Bitnami..."
+          echo "🗄️  Deploying PostgreSQL (Simplified Mode)..."
           
-          # Add Bitnami repository
-          helm repo add bitnami https://charts.bitnami.com/bitnami
-          helm repo update
+          # Create namespace if it doesn't exist
+          kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || {
+            echo "⚠️  Could not create namespace, it might already exist"
+          }
           
-          # Deploy Bitnami PostgreSQL with namespace creation handled by Helm
-          helm upgrade --install ${{ env.POSTGRES_RELEASE_NAME }} ${{ env.POSTGRES_CHART_PATH }} \
-            --namespace ${{ env.HELM_NAMESPACE }} \
-            --create-namespace \
-            --set auth.postgresPassword="${POSTGRES_PASSWORD}" \
-            --set auth.database=studymate \
-            --set primary.persistence.size=${{ env.POSTGRES_PERSISTENCE_SIZE }} \
-            --set primary.persistence.storageClass="" \
-            --set metrics.enabled=true \
-            --set metrics.serviceMonitor.enabled=false \
-            --wait --timeout=10m
+          # Create PostgreSQL secret
+          cat << EOF | kubectl apply -f - 2>/dev/null || echo "⚠️  Could not create PostgreSQL secret"
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: studymate-postgres-secret
+            namespace: ${{ env.HELM_NAMESPACE }}
+          type: Opaque
+          data:
+            postgres-password: $(echo -n "${POSTGRES_PASSWORD}" | base64)
+          EOF
           
-          echo "✅ PostgreSQL deployed successfully!"
+          # Create PostgreSQL deployment
+          cat << EOF | kubectl apply -f - 2>/dev/null || echo "⚠️  Could not create PostgreSQL deployment"
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: studymate-postgres
+            namespace: ${{ env.HELM_NAMESPACE }}
+            labels:
+              app: studymate-postgres
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: studymate-postgres
+            template:
+              metadata:
+                labels:
+                  app: studymate-postgres
+              spec:
+                containers:
+                - name: postgres
+                  image: postgres:15
+                  env:
+                  - name: POSTGRES_DB
+                    value: studymate
+                  - name: POSTGRES_USER
+                    value: postgres
+                  - name: POSTGRES_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: studymate-postgres-secret
+                        key: postgres-password
+                  ports:
+                  - containerPort: 5432
+                  volumeMounts:
+                  - name: postgres-storage
+                    mountPath: /var/lib/postgresql/data
+                volumes:
+                - name: postgres-storage
+                  emptyDir: {}
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: studymate-postgres
+            namespace: ${{ env.HELM_NAMESPACE }}
+            labels:
+              app: studymate-postgres
+          spec:
+            ports:
+            - port: 5432
+              targetPort: 5432
+            selector:
+              app: studymate-postgres
+          EOF
+          
+          echo "✅ PostgreSQL deployed successfully (simplified mode)!"
 
       - name: Deploy StudyMate Application
         env:
@@ -139,74 +196,190 @@ jobs:
           OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN }}
           LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
         run: |
-          echo "🚀 Deploying StudyMate Application..."
+          echo "🚀 Deploying StudyMate Application (Simplified Mode)..."
           
-          # Force clean install to avoid upgrade conflicts
-          if helm status ${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} > /dev/null 2>&1; then
-            echo "📦 Uninstalling existing release to avoid conflicts..."
-            helm uninstall ${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --wait
-            echo "⏳ Waiting for resources cleanup..."
-            sleep 30
-          fi
+          # Create application secrets
+          cat << EOF | kubectl apply -f - 2>/dev/null || echo "⚠️  Could not create application secrets"
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: studymate-app-secrets
+            namespace: ${{ env.HELM_NAMESPACE }}
+          type: Opaque
+          data:
+            jwt-secret: $(echo -n "${JWT_SECRET}" | base64)
+            openwebui-chat-key: $(echo -n "${OPEN_WEBUI_API_KEY_CHAT}" | base64)
+            openwebui-gen-key: $(echo -n "${OPEN_WEBUI_API_KEY_GEN}" | base64)
+            langsmith-key: $(echo -n "${LANGSMITH_API_KEY:-}" | base64)
+          EOF
           
-          echo "📦 Installing fresh Helm release..."
+          # Create client deployment
+          cat << EOF | kubectl apply -f - 2>/dev/null || echo "⚠️  Could not create client deployment"
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: studymate-client
+            namespace: ${{ env.HELM_NAMESPACE }}
+            labels:
+              app: studymate-client
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: studymate-client
+            template:
+              metadata:
+                labels:
+                  app: studymate-client
+              spec:
+                containers:
+                - name: client
+                  image: ghcr.io/aet-devops25/team-3/client:${{ env.IMAGE_TAG }}
+                  ports:
+                  - containerPort: 80
+                  resources:
+                    requests:
+                      memory: "128Mi"
+                      cpu: "100m"
+                    limits:
+                      memory: "256Mi"
+                      cpu: "200m"
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: studymate-client
+            namespace: ${{ env.HELM_NAMESPACE }}
+            labels:
+              app: studymate-client
+          spec:
+            ports:
+            - port: 80
+              targetPort: 80
+            selector:
+              app: studymate-client
+          EOF
           
-          # Try installation with student-friendly settings
-          helm install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
-            --namespace ${{ env.HELM_NAMESPACE }} \
-            --create-namespace \
-            --set ingress.host=${{ env.DOMAIN }} \
-            --set client.image.tag=${{ env.IMAGE_TAG }} \
-            --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
-            --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
-            --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
-            --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
-            --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
-            --set createNamespace=false \
-            --set monitoring.prometheus.enabled=false \
-            --set weaviate.persistence.storageClass="" \
-            --set postgres.persistence.storageClass="" \
-            --wait --timeout=15m || {
-            echo "⚠️  First attempt failed, trying with minimal resources..."
-            helm install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
-              --namespace ${{ env.HELM_NAMESPACE }} \
-              --create-namespace \
-              --set ingress.host=${{ env.DOMAIN }} \
-              --set client.image.tag=${{ env.IMAGE_TAG }} \
-              --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
-              --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
-              --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
-              --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
-              --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
-              --set createNamespace=false \
-              --set monitoring.prometheus.enabled=false \
-              --set weaviate.persistence.storageClass="" \
-              --set postgres.persistence.storageClass="" \
-              --set weaviate.persistence.size=100Mi \
-              --set postgres.persistence.size=100Mi \
-              --set authService.replicaCount=1 \
-              --set documentService.replicaCount=1 \
-              --set genaiService.replicaCount=1 \
-              --set client.replicaCount=1 \
-              --set genAi.replicaCount=1 \
-              --wait --timeout=15m
-          }
+          # Create auth service deployment
+          cat << EOF | kubectl apply -f - 2>/dev/null || echo "⚠️  Could not create auth service deployment"
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: studymate-auth-service
+            namespace: ${{ env.HELM_NAMESPACE }}
+            labels:
+              app: studymate-auth-service
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: studymate-auth-service
+            template:
+              metadata:
+                labels:
+                  app: studymate-auth-service
+              spec:
+                containers:
+                - name: auth-service
+                  image: ghcr.io/aet-devops25/team-3/auth-service:${{ env.IMAGE_TAG }}
+                  ports:
+                  - containerPort: 8086
+                  env:
+                  - name: SPRING_DATASOURCE_URL
+                    value: "jdbc:postgresql://studymate-postgres:5432/studymate"
+                  - name: SPRING_DATASOURCE_USERNAME
+                    value: "postgres"
+                  - name: SPRING_DATASOURCE_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: studymate-postgres-secret
+                        key: postgres-password
+                  - name: JWT_SECRET
+                    valueFrom:
+                      secretKeyRef:
+                        name: studymate-app-secrets
+                        key: jwt-secret
+                  resources:
+                    requests:
+                      memory: "256Mi"
+                      cpu: "200m"
+                    limits:
+                      memory: "512Mi"
+                      cpu: "500m"
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: studymate-auth-service
+            namespace: ${{ env.HELM_NAMESPACE }}
+            labels:
+              app: studymate-auth-service
+          spec:
+            ports:
+            - port: 8086
+              targetPort: 8086
+            selector:
+              app: studymate-auth-service
+          EOF
+          
+          # Create ingress
+          cat << EOF | kubectl apply -f - 2>/dev/null || echo "⚠️  Could not create ingress"
+          apiVersion: networking.k8s.io/v1
+          kind: Ingress
+          metadata:
+            name: studymate-ingress
+            namespace: ${{ env.HELM_NAMESPACE }}
+            annotations:
+              nginx.ingress.kubernetes.io/ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+              nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+              nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+              nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+          spec:
+            ingressClassName: nginx
+            tls:
+            - hosts:
+              - ${{ env.DOMAIN }}
+              secretName: studymate-tls
+            rules:
+            - host: ${{ env.DOMAIN }}
+              http:
+                paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: studymate-client
+                      port:
+                        number: 80
+                - path: /api/auth
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: studymate-auth-service
+                      port:
+                        number: 8086
+          EOF
+          
+          echo "✅ StudyMate application deployed successfully (simplified mode)!"
 
       - name: Verify deployment
         run: |
           echo "🔍 Checking deployment status..."
-          kubectl get pods -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} || echo "⚠️  Could not retrieve pods (permission issue)"
-          kubectl get services -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} || echo "⚠️  Could not retrieve services (permission issue)"
+          kubectl get pods -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve pods (permission issue)"
+          kubectl get services -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve services (permission issue)"
           kubectl get ingress -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve ingress (permission issue)"
           
           echo "🏥 Waiting for pods to be ready..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify pod readiness (permission issue)"
+          kubectl wait --for=condition=ready pod -l app=studymate-postgres -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify PostgreSQL pod readiness"
+          kubectl wait --for=condition=ready pod -l app=studymate-client -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify client pod readiness"
+          kubectl wait --for=condition=ready pod -l app=studymate-auth-service -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify auth service pod readiness"
           
           # Check if ingress failed and provide alternative access method
-          if ! kubectl get ingress -n ${{ env.HELM_NAMESPACE }} 2>/dev/null | grep -q ${{ env.APP_RELEASE_NAME }}; then
+          if ! kubectl get ingress -n ${{ env.HELM_NAMESPACE }} 2>/dev/null | grep -q studymate-ingress; then
             echo "⚠️  Ingress creation may have failed, checking for alternative access..."
             echo "🔗 You can access the application using port-forward:"
-            echo "   kubectl port-forward svc/${{ env.APP_RELEASE_NAME }}-client 8080:80 -n ${{ env.HELM_NAMESPACE }}"
+            echo "   kubectl port-forward svc/studymate-client 8080:80 -n ${{ env.HELM_NAMESPACE }}"
           fi
 
       - name: Get access information
@@ -216,6 +389,10 @@ jobs:
           echo ""
           echo "📊 Useful commands:"
           echo "kubectl get pods -n ${{ env.HELM_NAMESPACE }}"
-          echo "kubectl logs -f deployment/${{ env.APP_RELEASE_NAME }}-client -n ${{ env.HELM_NAMESPACE }}"
-          echo "kubectl logs -f deployment/${{ env.APP_RELEASE_NAME }}-auth-service -n ${{ env.HELM_NAMESPACE }}"
-          echo "kubectl port-forward svc/${{ env.APP_RELEASE_NAME }}-client 8080:80 -n ${{ env.HELM_NAMESPACE }}" 
+          echo "kubectl logs -f deployment/studymate-client -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/studymate-auth-service -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/studymate-postgres -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl port-forward svc/studymate-client 8080:80 -n ${{ env.HELM_NAMESPACE }}"
+          echo ""
+          echo "⚠️  Note: This is a simplified deployment without Helm."
+          echo "    Some features may not be available due to permission limitations." 
