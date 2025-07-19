@@ -103,7 +103,7 @@ genaiService:
 client:
   image:
     repository: ghcr.io/aet-devops25/team-3/client
-    tag: latest
+    tag: k8s-latest
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
