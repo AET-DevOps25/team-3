@@ -1,6 +1,6 @@
 # This file contains the default values for the studymate App Helm chart.
 
-teamid: studymate
+teamid: study-mate
 
 # Auth Service - Authentication microservice
 authService:
@@ -17,16 +17,13 @@ authService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/auth_db"
+      value: "jdbc:postgresql://study-mate-postgres:5432/auth_db"
     - name: SPRING_DATASOURCE_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: postgres-secret
-          key: username
+      value: "postgres"
     - name: SPRING_DATASOURCE_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: postgres-secret
+          name: study-mate-postgres
           key: password
     - name: JWT_SECRET
       valueFrom:
@@ -53,16 +50,13 @@ documentService:
     - name: SPRING_PROFILES_ACTIVE
       value: docker
     - name: SPRING_DATASOURCE_URL
-      value: "jdbc:postgresql://studymate-postgres:5432/document_db"
+      value: "jdbc:postgresql://study-mate-postgres:5432/study-mate"
     - name: SPRING_DATASOURCE_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: postgres-secret
-          key: username
+      value: "postgres"
     - name: SPRING_DATASOURCE_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: postgres-secret
+          name: study-mate-postgres
           key: password
     - name: JWT_SECRET
       valueFrom:
@@ -70,7 +64,7 @@ documentService:
           name: auth-secret
           key: jwt-secret
     - name: AUTH_SERVICE_URL
-      value: "http://{{ include \"studymate.fullname\" . }}-auth-service:8086"
+      value: "http://{{ include \"study-mate.fullname\" . }}-auth-service:8086"
     - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
       value: "50MB"
     - name: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
@@ -96,11 +90,11 @@ genaiService:
           name: auth-secret
           key: jwt-secret
     - name: AUTH_SERVICE_URL
-      value: "http://{{ include \"studymate.fullname\" . }}-auth-service:8086"
+      value: "http://{{ include \"study-mate.fullname\" . }}-auth-service:8086"
     - name: DOCUMENT_SERVICE_URL
-      value: "http://{{ include \"studymate.fullname\" . }}-document-service:8084"
+      value: "http://{{ include \"study-mate.fullname\" . }}-document-service:8084"
     - name: GENAI_BACKEND_URL
-      value: "http://{{ include \"studymate.fullname\" . }}-genai:8081"
+      value: "http://{{ include \"study-mate.fullname\" . }}-genai:8081"
     - name: RATE_LIMIT_REQUESTS_PER_MINUTE
       value: "60"
     - name: SERVER_TOMCAT_THREADS_MAX
@@ -116,10 +110,10 @@ client:
     port: 80
     targetPort: 80
   replicaCount: 1
-  apiBaseUrl: "https://studymate.student.k8s.aet.cit.tum.de"
+  apiBaseUrl: "https://study-mate.student.k8s.aet.cit.tum.de"
   env:
     - name: VITE_API_BASE_URL
-      value: "https://studymate.student.k8s.aet.cit.tum.de"
+      value: "https://study-mate.student.k8s.aet.cit.tum.de"
 
 genAi:
   image:
@@ -144,9 +138,9 @@ genAi:
           key: open-webui-api-key-gen
 
     - name: WEAVIATE_HOST
-      value: "{{ include \"studymate.fullname\" . }}-weaviate"
+      value: "{{ include \"study-mate.fullname\" . }}-weaviate"
     - name: WEAVIATE_PORT
-      value: "8083"
+      value: "8087"
 
     # LangSmith Configuration
     - name: LANGSMITH_TRACING
@@ -154,14 +148,16 @@ genAi:
     - name: LANGSMITH_ENDPOINT
       value: "https://api.smith.langchain.com"
     - name: LANGSMITH_PROJECT
-      value: "studymate"
+      value: "study-mate"
     - name: LANGSMITH_API_KEY
       valueFrom:
         secretKeyRef:
           name: genai-secret
           key: langsmith-api-key
 
+# PostgreSQL configuration (disabled when using Bitnami)
 postgres:
+  enabled: false  # Disabled - using Bitnami PostgreSQL instead
   image:
     repository: postgres
     tag: "15"
@@ -178,15 +174,15 @@ postgres:
     - name: POSTGRES_USER
       valueFrom:
         secretKeyRef:
-          name: postgres-secret
+          name: study-mate-postgres  
           key: username
     - name: POSTGRES_PASSWORD
       valueFrom:
         secretKeyRef:
-          name: postgres-secret
+          name: study-mate-postgres
           key: password
     - name: POSTGRES_DB
-      value: studymate
+      value: study-mate
 
 weaviate:
   image:
@@ -195,7 +191,7 @@ weaviate:
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-    port: 8083
+    port: 8087  # Changed from 8083 to avoid conflict with auth service
     targetPort: 8080
   replicaCount: 1
   persistence:
@@ -220,7 +216,7 @@ weaviate:
 ingress:
   enabled: true
   className: "nginx"
-  host: "studymate.student.k8s.aet.cit.tum.de"  # Student Rancher domain
+  host: "study-mate.student.k8s.aet.cit.tum.de"  # Student Rancher domain
   tls: true
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
@@ -244,7 +240,7 @@ monitoring:
 secrets:
   postgres:
     create: true
-    name: postgres-secret
+    name: study-mate-postgres
     # Use external secret management or set via --set-string
     # Never commit actual secret values to version control
     existingSecret: ""  # Name of existing secret to use instead of creating new one
