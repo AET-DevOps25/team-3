@@ -21,6 +21,8 @@ services:
     restart: unless-stopped
     networks:
       - proxy
+    environment:
+      - VITE_API_BASE_URL=https://studymate-tum.xyz
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=Host(`studymate-tum.xyz`)"
@@ -42,7 +44,7 @@ services:
       - "traefik.http.services.auth.loadbalancer.server.port=8083"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
-      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_USERNAME=postgres # TODO: replace with env variable
       - SPRING_DATASOURCE_PASSWORD=postgres
     depends_on:
       - postgres
