@@ -129,7 +129,7 @@ jobs:
             --set-string secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" \
             --set-string secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
-              --wait --timeout=10m
+              --wait --timeout=40m
 
       - name: Verify deployment
         run: |
