@@ -384,7 +384,9 @@ const SummaryTab = ({ uploadedFiles, documentIds }: SummaryTabProps) => {
                       {item.keyPoints.map((point, pointIndex) => (
                         <li key={pointIndex} className="flex items-start">
                           <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                          <ReactMarkdown className="text-gray-700">{point}</ReactMarkdown>
+                          <div className="text-gray-700">
+                            <ReactMarkdown>{point}</ReactMarkdown>
+                          </div>
                         </li>
                       ))}
                     </ul>

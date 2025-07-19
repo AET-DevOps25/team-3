@@ -75,7 +75,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
-      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -100,7 +99,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
-      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -134,7 +132,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
-      throw error;
     } finally {
       setIsLoading(false);
     }

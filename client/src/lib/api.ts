@@ -440,13 +440,17 @@ class ApiService {
     }
   }
 
-  async uploadFiles(files: File[]): Promise<DocumentUploadResponse> {
+  async uploadFiles(files: File[], fileType?: string): Promise<DocumentUploadResponse> {
     const formData = new FormData();
     
     // Append all files to the form data
     files.forEach((file) => {
-      formData.append('files', file);
+      formData.append('files', file, file.name);
     });
+
+    if (fileType) {
+      formData.append('type', fileType);
+    }
 
     const token = TokenManager.getToken();
     const headers: HeadersInit = {};

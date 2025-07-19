@@ -30,6 +30,7 @@ data class DocumentStatusResponse(
 )
 
 enum class DocumentStatus {
+    PENDING,         // Default state
     UPLOADED,        // Just uploaded
     PROCESSING,      // Being processed by AI
     PROCESSED,       // Processing complete
@@ -42,9 +43,9 @@ data class DocumentContentStatus(
     val documentId: String,
     val documentName: String,
     val overallStatus: DocumentStatus,
-    val summaryStatus: DocumentStatus = DocumentStatus.UPLOADED,
-    val quizStatus: DocumentStatus = DocumentStatus.UPLOADED,
-    val flashcardStatus: DocumentStatus = DocumentStatus.UPLOADED,
+    val summaryStatus: DocumentStatus = DocumentStatus.PENDING,
+    val quizStatus: DocumentStatus = DocumentStatus.PENDING,
+    val flashcardStatus: DocumentStatus = DocumentStatus.PENDING,
     val uploadDate: String,
     val error: String? = null
 )
