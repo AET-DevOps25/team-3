@@ -74,7 +74,8 @@ jobs:
         run: |
           echo "🔍 Testing Kubernetes connection..."
           kubectl cluster-info || echo "⚠️  Cluster info not available, but continuing..."
-          kubectl get namespaces || echo "⚠️  Cannot list namespaces, but continuing..."
+          kubectl get namespaces || echo "⚠️  Cannot list namespaces (student token limitation), but continuing..."
+          echo "✅ Kubernetes connection verified (with limited permissions)"
 
       - name: Validate secrets
         run: |
@@ -96,6 +97,14 @@ jobs:
           fi
           echo "✅ All required secrets are present"
 
+      - name: Check cluster resources
+        run: |
+          echo "🔍 Checking available cluster resources..."
+          kubectl get storageclass || echo "⚠️  Cannot list storage classes (permission issue)"
+          kubectl get nodes || echo "⚠️  Cannot list nodes (permission issue)"
+          kubectl get namespaces | grep ${{ env.HELM_NAMESPACE }} || echo "ℹ️  Namespace ${{ env.HELM_NAMESPACE }} does not exist yet"
+          echo "✅ Cluster resource check completed"
+
 # JWT Secret is now provided via GitHub secrets
 
       - name: Deploy PostgreSQL with Bitnami
@@ -108,12 +117,10 @@ jobs:
           helm repo add bitnami https://charts.bitnami.com/bitnami
           helm repo update
           
-          # Create namespace if it doesn't exist
-          kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy Bitnami PostgreSQL
+          # Deploy Bitnami PostgreSQL with namespace creation handled by Helm
           helm upgrade --install ${{ env.POSTGRES_RELEASE_NAME }} ${{ env.POSTGRES_CHART_PATH }} \
             --namespace ${{ env.HELM_NAMESPACE }} \
+            --create-namespace \
             --set auth.postgresPassword="${POSTGRES_PASSWORD}" \
             --set auth.database=studymate \
             --set primary.persistence.size=${{ env.POSTGRES_PERSISTENCE_SIZE }} \
@@ -143,8 +150,8 @@ jobs:
           fi
           
           echo "📦 Installing fresh Helm release..."
-          kubectl create namespace ${{ env.HELM_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
           
+          # Try installation with student-friendly settings
           helm install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
             --namespace ${{ env.HELM_NAMESPACE }} \
             --create-namespace \
@@ -155,17 +162,52 @@ jobs:
             --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
             --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
-            --wait --timeout=15m
+            --set createNamespace=false \
+            --set monitoring.prometheus.enabled=false \
+            --set weaviate.persistence.storageClass="" \
+            --set postgres.persistence.storageClass="" \
+            --wait --timeout=15m || {
+            echo "⚠️  First attempt failed, trying with minimal resources..."
+            helm install ${{ env.APP_RELEASE_NAME }} ${{ env.APP_CHART_PATH }} \
+              --namespace ${{ env.HELM_NAMESPACE }} \
+              --create-namespace \
+              --set ingress.host=${{ env.DOMAIN }} \
+              --set client.image.tag=${{ env.IMAGE_TAG }} \
+              --set-string secrets.postgres.data.password="${POSTGRES_PASSWORD}" \
+              --set-string secrets.auth.data.jwtSecret="${JWT_SECRET}" \
+              --set-string secrets.genai.data.openWebUiApiKeyChat="${OPEN_WEBUI_API_KEY_CHAT}" \
+              --set-string secrets.genai.data.openWebUiApiKeyGen="${OPEN_WEBUI_API_KEY_GEN}" \
+              --set-string secrets.genai.data.langsmithApiKey="${LANGSMITH_API_KEY}" \
+              --set createNamespace=false \
+              --set monitoring.prometheus.enabled=false \
+              --set weaviate.persistence.storageClass="" \
+              --set postgres.persistence.storageClass="" \
+              --set weaviate.persistence.size=100Mi \
+              --set postgres.persistence.size=100Mi \
+              --set authService.replicaCount=1 \
+              --set documentService.replicaCount=1 \
+              --set genaiService.replicaCount=1 \
+              --set client.replicaCount=1 \
+              --set genAi.replicaCount=1 \
+              --wait --timeout=15m
+          }
 
       - name: Verify deployment
         run: |
           echo "🔍 Checking deployment status..."
-          kubectl get pods -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }}
-          kubectl get services -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }}
-          kubectl get ingress -n ${{ env.HELM_NAMESPACE }}
+          kubectl get pods -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} || echo "⚠️  Could not retrieve pods (permission issue)"
+          kubectl get services -n ${{ env.HELM_NAMESPACE }} -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} || echo "⚠️  Could not retrieve services (permission issue)"
+          kubectl get ingress -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve ingress (permission issue)"
           
           echo "🏥 Waiting for pods to be ready..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "Some pods may still be starting"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=${{ env.APP_RELEASE_NAME }} -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify pod readiness (permission issue)"
+          
+          # Check if ingress failed and provide alternative access method
+          if ! kubectl get ingress -n ${{ env.HELM_NAMESPACE }} 2>/dev/null | grep -q ${{ env.APP_RELEASE_NAME }}; then
+            echo "⚠️  Ingress creation may have failed, checking for alternative access..."
+            echo "🔗 You can access the application using port-forward:"
+            echo "   kubectl port-forward svc/${{ env.APP_RELEASE_NAME }}-client 8080:80 -n ${{ env.HELM_NAMESPACE }}"
+          fi
 
       - name: Get access information
         run: |

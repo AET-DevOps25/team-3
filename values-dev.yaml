@@ -1,0 +1,53 @@
+# Generated values for dev environment
+teamid: studymate
+
+ingress:
+  enabled: true
+  className: "nginx"
+  host: "studymate.student.k8s.aet.cit.tum.de"
+  tls: true
+
+# Image tags - update these for production deployments
+authService:
+  image:
+    tag: "latest"
+documentService:
+  image:
+    tag: "latest"
+genaiService:
+  image:
+    tag: "latest"
+
+client:
+  image:
+    tag: "latest"
+genAi:
+  image:
+    tag: "latest"
+
+# Secrets - IMPORTANT: Override these with actual values in production
+secrets:
+  postgres:
+    data:
+      username: postgres
+      password: "changeme-postgres-password"
+  auth:
+    data:
+      jwtSecret: "changeme-very-long-jwt-secret-key-at-least-256-bits"
+  genai:
+    data:
+      apiKey: "changeme-openai-api-key"
+      openWebUiApiKeyChat: "changeme-chat-api-key"
+      openWebUiApiKeyGen: "changeme-gen-api-key"
+
+
+# Student Rancher environment overrides
+ingress:
+  annotations:
+    # Force HTTPS redirect for production
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Student Rancher specific settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
