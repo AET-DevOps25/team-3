@@ -6,7 +6,7 @@ on:
     paths:
       - 'client/**'
       - 'server/**'
-      - 'genAi/**'
+      - 'genai/**'
       - 'infra/helm/**'
       - '.github/workflows/**'
   workflow_dispatch:
