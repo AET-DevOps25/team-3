@@ -45,7 +45,7 @@ class RAGHelper:
     def __init__(self, doc_path: str):
         # Initialize Weaviate client first
         weaviate_host = os.getenv("WEAVIATE_HOST", "localhost")
-        weaviate_port = os.getenv("WEAVIATE_PORT", "8083")
+        weaviate_port = os.getenv("WEAVIATE_PORT", "8087")
         # Use custom connection with HTTP only since gRPC is not exposed
         self.weaviate_client = weaviate.connect_to_custom(
             http_host=weaviate_host,
@@ -54,10 +54,7 @@ class RAGHelper:
             grpc_host=weaviate_host,
             grpc_port=50051,
             grpc_secure=False,
-            skip_init_checks=True,
-            additional_config=weaviate.init.AdditionalConfig(
-                timeout=weaviate.init.Timeout(init=60)
-            )
+            skip_init_checks=True
         )
         
         # Load documents
