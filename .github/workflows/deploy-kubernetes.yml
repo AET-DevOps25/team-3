@@ -8,6 +8,7 @@ on:
       - 'server/**'
       - 'genAi/**'
       - 'infra/helm/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       domain:
