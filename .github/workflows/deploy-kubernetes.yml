@@ -1,13 +1,11 @@
 name: Deploy StudyMate to Kubernetes
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Build StudyMate Images"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'client/**'
-      - 'server/**'
-      - 'genAi/**'
-      - 'infra/helm/**'
   workflow_dispatch:
     inputs:
       domain:
@@ -18,6 +16,7 @@ on:
 jobs:
   deploy-kubernetes:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     
     env:
       HELM_NAMESPACE: study-mate
