@@ -17,6 +17,12 @@ COPY . .
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+# Debug: Echo the build arg to verify it's being passed
+RUN echo "Received VITE_API_BASE_URL: $VITE_API_BASE_URL"
+
+# Create .env file with the build arg
+RUN echo "VITE_API_BASE_URL=$VITE_API_BASE_URL" > .env
+
 # Build the app
 RUN npm run build
 
