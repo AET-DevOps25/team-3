@@ -46,9 +46,14 @@ class RAGHelper:
         # Initialize Weaviate client first
         weaviate_host = os.getenv("WEAVIATE_HOST", "localhost")
         weaviate_port = os.getenv("WEAVIATE_PORT", "8083")
-        # Use HTTP connection instead of gRPC
-        self.weaviate_client = weaviate.connect_to_weaviate(
-            url=f"http://{weaviate_host}:{weaviate_port}",
+        # Use custom connection with explicit HTTP and gRPC configuration
+        self.weaviate_client = weaviate.connect_to_custom(
+            http_host=weaviate_host,
+            http_port=int(weaviate_port),
+            http_secure=False,  # HTTP, not HTTPS
+            grpc_host=weaviate_host,
+            grpc_port=50051,
+            grpc_secure=False,  # gRPC, not gRPCS
             skip_init_checks=True,
             additional_config=weaviate.init.AdditionalConfig(
                 timeout=weaviate.init.Timeout(init=60)

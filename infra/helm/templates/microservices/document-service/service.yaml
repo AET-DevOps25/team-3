@@ -15,4 +15,4 @@ spec:
       name: http
   selector:
     {{- include "studymate.selectorLabels" . | nindent 4 }}
-    app.kubernetes.io/component: document-service 
+    app.kubernetes.io/component: document-service

@@ -117,18 +117,18 @@ jobs:
           echo "📦 Upgrading Helm release..."
           
           helm upgrade study-mate ./infra/helm -n ${{ env.HELM_NAMESPACE }} \
-            --set ingress.host="${DOMAIN}" \
-            --set client.image.tag="k8s-latest" \
+              --set ingress.host="${DOMAIN}" \
+              --set client.image.tag="k8s-latest" \
             --set authService.image.tag="k8s-latest" \
             --set documentService.image.tag="k8s-latest" \
             --set genaiService.image.tag="k8s-latest" \
             --set genAi.image.tag="k8s-latest" \
-            --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
-            --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
+              --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
+              --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
             --set-string secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" \
             --set-string secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
-            --wait --timeout=10m
+              --wait --timeout=10m
 
       - name: Verify deployment
         run: |

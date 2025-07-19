@@ -64,7 +64,9 @@ documentService:
           name: auth-secret
           key: jwt-secret
     - name: AUTH_SERVICE_URL
-      value: "http://{{ include \"study-mate.fullname\" . }}-auth-service:8086"
+      value: "http://study-mate-auth-service:8086"
+    - name: GENAI_SERVICE_URL
+      value: "http://study-mate-genai-service:8085"
     - name: SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE
       value: "50MB"
     - name: SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
@@ -90,11 +92,11 @@ genaiService:
           name: auth-secret
           key: jwt-secret
     - name: AUTH_SERVICE_URL
-      value: "http://{{ include \"study-mate.fullname\" . }}-auth-service:8086"
+      value: "http://study-mate-auth-service:8086"
     - name: DOCUMENT_SERVICE_URL
-      value: "http://{{ include \"study-mate.fullname\" . }}-document-service:8084"
+      value: "http://study-mate-document-service:8084"
     - name: GENAI_BACKEND_URL
-      value: "http://{{ include \"study-mate.fullname\" . }}-genai:8081"
+      value: "http://study-mate-genai:8081"
     - name: RATE_LIMIT_REQUESTS_PER_MINUTE
       value: "60"
     - name: SERVER_TOMCAT_THREADS_MAX
@@ -138,7 +140,7 @@ genAi:
           key: open-webui-api-key-gen
 
     - name: WEAVIATE_HOST
-      value: "{{ include \"study-mate.fullname\" . }}-weaviate"
+      value: "study-mate-weaviate"
     - name: WEAVIATE_PORT
       value: "8087"
 
