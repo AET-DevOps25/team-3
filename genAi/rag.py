@@ -46,9 +46,13 @@ class RAGHelper:
         # Initialize Weaviate client first
         weaviate_host = os.getenv("WEAVIATE_HOST", "localhost")
         weaviate_port = os.getenv("WEAVIATE_PORT", "8083")
-        self.weaviate_client = weaviate.connect_to_local(
-            host=weaviate_host,
-            port=int(weaviate_port),
+        # Use HTTP connection instead of gRPC
+        self.weaviate_client = weaviate.connect_to_weaviate(
+            url=f"http://{weaviate_host}:{weaviate_port}",
+            skip_init_checks=True,
+            additional_config=weaviate.init.AdditionalConfig(
+                timeout=weaviate.init.Timeout(init=60)
+            )
         )
         
         # Load documents
