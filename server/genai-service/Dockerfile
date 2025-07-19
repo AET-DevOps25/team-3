@@ -7,12 +7,15 @@ WORKDIR /app
 COPY gradlew .
 COPY gradle gradle/
 COPY build.gradle.kts .
+COPY settings.gradle.kts .
 
 # Copy source code
 COPY src src/
 
-# Make gradlew executable and build the application
-RUN chmod +x gradlew && ./gradlew build -x test --no-daemon
+# Fix line endings, make executable, and build
+RUN sed -i 's/\r$//' gradlew && \
+    chmod +x gradlew && \
+    ./gradlew build -x test --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre
