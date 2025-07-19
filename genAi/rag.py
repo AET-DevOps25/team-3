@@ -58,7 +58,7 @@ class RAGHelper:
             skip_init_checks=True,
             additional_config=weaviate.init.AdditionalConfig(
                 timeout=weaviate.init.Timeout(init=60)
-            )
+            ),
         )
 
         # Load documents
