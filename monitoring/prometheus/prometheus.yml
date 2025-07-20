@@ -22,20 +22,6 @@ scrape_configs:
     static_configs:
       - targets: ['genai:8081']
 
-  - job_name: 'postgres'
-    static_configs:
-      - targets: ['postgres:5432']
-
-  - job_name: 'weaviate'
-    static_configs:
-      - targets: ['weaviate:8087']
-
-  # Legacy/fallback jobs
-  - job_name: 'server'
-    static_configs:
-      - targets: ['server:8082']
-    metrics_path: /actuator/prometheus
-
   # For dev only (when services are run manually)
   - job_name: 'genai-dev'
     static_configs:
