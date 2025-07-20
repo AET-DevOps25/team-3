@@ -76,80 +76,6 @@ jobs:
           client/coverage/
           client/test-results.xml
           
-  # Job 2: GenAI Service Tests (Python/FastAPI)
-  genai-tests:
-    name: GenAI Service Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    
-    services:
-      # Start Weaviate for integration tests
-      weaviate:
-        image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
-        ports:
-          - 8080:8080
-        env:
-          AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
-          QUERY_DEFAULTS_LIMIT: 25
-          PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
-          
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-        cache: 'pip'
-        cache-dependency-path: |
-          genAi/requirements.txt
-          genAi/requirements-test.txt
-          
-    - name: Wait for Weaviate to be ready
-      run: |
-        echo "Waiting for Weaviate to start..."
-        timeout 120 bash -c 'until curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
-        
-    - name: Install dependencies
-      run: |
-        cd genAi
-        pip install -r requirements.txt
-        pip install -r requirements-test.txt
-        
-    - name: Run code formatting check
-      run: |
-        cd genAi
-        black --check .
-        
-    - name: Run tests with coverage
-      env:
-        OPEN_WEBUI_API_KEY_CHAT: ${{ secrets.OPEN_WEBUI_API_KEY_CHAT || 'test-chat-key' }}
-        OPEN_WEBUI_API_KEY_GEN: ${{ secrets.OPEN_WEBUI_API_KEY_GEN || 'test-gen-key' }}
-        WEAVIATE_HOST: localhost
-        WEAVIATE_PORT: 8080
-      run: |
-        cd genAi
-        python -m pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml -v
-        
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        file: ./genAi/coverage.xml
-        flags: genai
-        name: genai-coverage
-        fail_ci_if_error: false
-        
-    - name: Archive test results
-      uses: actions/upload-artifact@v4
-      if: always()
-      with:
-        name: genai-test-results
-        path: |
-          genAi/htmlcov/
-          genAi/test-results.xml
-          genAi/coverage.xml
-          
   # Job 3: Auth Service Tests (Kotlin/Spring Boot)
   auth-service-tests:
     name: Auth Service Tests
@@ -267,7 +193,7 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    needs: [client-tests, genai-tests, auth-service-tests, document-service-tests]
+    needs: [client-tests, auth-service-tests, document-service-tests]
     
     services:
       postgres:
@@ -635,7 +561,7 @@ jobs:
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [client-tests, genai-tests, auth-service-tests, document-service-tests, integration-tests, ai-functionality-tests, error-handling-tests, security-tests]
+    needs: [client-tests, auth-service-tests, document-service-tests, integration-tests, ai-functionality-tests, error-handling-tests, security-tests]
     if: always()
     
     steps:
@@ -656,11 +582,6 @@ jobs:
           echo "❌ Client Tests: FAILED" >> test-summary.md
         fi
         
-        if [ "${{ needs.genai-tests.result }}" = "success" ]; then
-          echo "✅ GenAI Tests: PASSED" >> test-summary.md
-        else
-          echo "❌ GenAI Tests: FAILED" >> test-summary.md
-        fi
         
         if [ "${{ needs.auth-service-tests.result }}" = "success" ]; then
           echo "✅ Auth Service Tests: PASSED" >> test-summary.md

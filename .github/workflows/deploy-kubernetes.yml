@@ -1,11 +1,11 @@
-name: Deploy StudyMate to Kubernetes
+name: Deploy to Kubernetes
 
 on:
   push:
     branches: [main]
     paths:
-      - 'client/**'
       - 'server/**'
+      - 'client/**'
       - 'genAi/**'
       - 'infra/helm/**'
       - '.github/workflows/**'
@@ -35,7 +35,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup kubeconfig
+      - name: Setup Kubernetes tools
         run: |
           mkdir -p ~/.kube
           cat > ~/.kube/config << 'EOF'
@@ -129,7 +129,7 @@ jobs:
             --set-string secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" \
             --set-string secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
-              --wait --timeout=40m
+              --wait --timeout=10m
 
       - name: Verify deployment
         run: |

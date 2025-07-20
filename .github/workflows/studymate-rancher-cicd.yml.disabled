@@ -4,7 +4,7 @@ on:
   push:
     paths:
       - 'client/**'
-      - 'server/**'
+      - 'microservices/**'
       - 'genAi/**'
       - 'infra/helm/**'
       - 'docker-compose*.yml'
@@ -52,7 +52,7 @@ jobs:
         run: |
           echo "🧪 Testing Kotlin microservices..."
           # Test auth-service
-          cd server/auth-service
+          cd microservices/auth-service
           ./gradlew test --no-daemon || echo "⚠️  Auth service tests failed (continuing)"
           
           # Test document-service
@@ -133,8 +133,8 @@ jobs:
       - name: Build and Push Auth Service Image
         uses: docker/build-push-action@v5
         with:
-          context: ./server/auth-service
-          file: ./server/auth-service/Dockerfile
+          context: ./microservices/auth-service
+          file: ./microservices/auth-service/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME_PREFIX }}-auth:latest,${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME_PREFIX }}-auth:sha-${{ github.sha }}
@@ -143,8 +143,8 @@ jobs:
       - name: Build and Push Document Service Image
         uses: docker/build-push-action@v5
         with:
-          context: ./server/document-service
-          file: ./server/document-service/Dockerfile
+          context: ./microservices/document-service
+          file: ./microservices/document-service/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME_PREFIX }}-document:latest,${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME_PREFIX }}-document:sha-${{ github.sha }}
@@ -153,8 +153,8 @@ jobs:
       - name: Build and Push GenAI Service Image
         uses: docker/build-push-action@v5
         with:
-          context: ./server/genai-service
-          file: ./server/genai-service/Dockerfile
+          context: ./microservices/genai-service
+          file: ./microservices/genai-service/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME_PREFIX }}-genai:latest,${{ env.REGISTRY }}/${{ github.repository }}/${{ env.IMAGE_NAME_PREFIX }}-genai:sha-${{ github.sha }}

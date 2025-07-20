@@ -51,8 +51,6 @@ jobs:
           docker push ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA}
           docker tag ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/auth-service:latest
           docker push ghcr.io/aet-devops25/team-3/auth-service:latest
-          docker tag ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/auth-service:k8s-latest
-          docker push ghcr.io/aet-devops25/team-3/auth-service:k8s-latest
 
       - name: Build and push document-service
         run: |
@@ -60,8 +58,6 @@ jobs:
           docker push ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA}
           docker tag ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/document-service:latest
           docker push ghcr.io/aet-devops25/team-3/document-service:latest
-          docker tag ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/document-service:k8s-latest
-          docker push ghcr.io/aet-devops25/team-3/document-service:k8s-latest
 
       - name: Build and push genai-service
         run: |
@@ -69,8 +65,6 @@ jobs:
           docker push ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA}
           docker tag ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai-service:latest
           docker push ghcr.io/aet-devops25/team-3/genai-service:latest
-          docker tag ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai-service:k8s-latest
-          docker push ghcr.io/aet-devops25/team-3/genai-service:k8s-latest
 
       - name: Build and push eureka-server
         run: |
@@ -78,14 +72,10 @@ jobs:
           docker push ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA}
           docker tag ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/eureka-server:latest
           docker push ghcr.io/aet-devops25/team-3/eureka-server:latest
-          docker tag ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/eureka-server:k8s-latest
-          docker push ghcr.io/aet-devops25/team-3/eureka-server:k8s-latest
 
       - name: Build and push genai
         run: |
           docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genAi
           docker push ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA}
           docker tag ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai:latest
-          docker push ghcr.io/aet-devops25/team-3/genai:latest
-          docker tag ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai:k8s-latest
-          docker push ghcr.io/aet-devops25/team-3/genai:k8s-latest 
+          docker push ghcr.io/aet-devops25/team-3/genai:latest 
