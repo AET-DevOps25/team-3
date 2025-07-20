@@ -7,8 +7,8 @@ import jakarta.validation.constraints.NotNull
 
 // Request DTOs for GenAI service
 data class CreateSessionRequest(
-    @JsonProperty("session_id")
-    val sessionId: String,
+    @JsonProperty("user_id")
+    val userId: String,
     @JsonProperty("document_name")
     val documentName: String,
     @JsonProperty("document_base64")
@@ -16,24 +16,24 @@ data class CreateSessionRequest(
 )
 
 data class SummaryRequest(
-    @JsonProperty("session_id")
-    val sessionId: String
+    @JsonProperty("user_id")
+    val userId: String
 )
 
 data class PromptRequest(
-    @JsonProperty("session_id")
-    val sessionId: String,
+    @JsonProperty("user_id")
+    val userId: String,
     val message: String
 )
 
 data class QuizRequest(
-    @JsonProperty("session_id")
-    val sessionId: String
+    @JsonProperty("user_id")
+    val userId: String
 )
 
 data class FlashcardRequest(
-    @JsonProperty("session_id")
-    val sessionId: String
+    @JsonProperty("user_id")
+    val userId: String
 )
 
 // Response DTOs from GenAI service
@@ -179,8 +179,6 @@ data class ChatRequest(
     @JsonProperty("userId")
     val userId: String,
     
-    @JsonProperty("sessionId")
-    val sessionId: String? = null,
     @JsonProperty("documentContext")
     val documentContext: String? = null
 )
@@ -188,8 +186,8 @@ data class ChatRequest(
 data class ChatResponse(
     @JsonProperty("response")
     val response: String,
-    @JsonProperty("sessionId")
-    val sessionId: String,
+    @JsonProperty("userId")
+    val userId: String,
     @JsonProperty("timestamp")
     val timestamp: String
 )
@@ -207,8 +205,8 @@ data class ChatSessionRequest(
 )
 
 data class ChatSessionResponse(
-    @JsonProperty("sessionId")
-    val sessionId: String,
+    @JsonProperty("userId")
+    val userId: String,
     @JsonProperty("messages")
     val messages: List<ChatMessageDto> = emptyList(),
     @JsonProperty("documentsInContext")

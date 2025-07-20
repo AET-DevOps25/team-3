@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MessageSquare, Send, Bot, User, Sparkles, FileText, Clock } from 'lucide-react';
-import { apiService, ChatMessage, ChatSessionResponse } from '@/lib/api';
+import { apiService, ChatMessage } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ChatTabProps {
   uploadedFiles: File[];
@@ -13,10 +14,10 @@ interface ChatTabProps {
 }
 
 const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -29,47 +30,40 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize chat session when component mounts or documentIds change
+  // Initialize chat when component mounts or documentIds change
   useEffect(() => {
-    const initializeChatSession = async () => {
-      if (documentIds.length > 0 && !sessionId) {
+    const initializeChat = async () => {
+      if (documentIds.length > 0 && user) {
         setIsLoading(true);
         setError(null);
         try {
-          // Create chat session immediately with all provided documents
-          const response = await apiService.createChatSession(documentIds);
-          setSessionId(response.sessionId);
-          setMessages(response.messages);
+          // Optionally, fetch previous messages for user_id and documentIds if needed
+          setMessages([]); // Start with empty messages
         } catch (error) {
-          console.error('Failed to create chat session:', error);
-          setError('Failed to create chat session. Please try again.');
+          console.error('Failed to initialize chat:', error);
+          setError('Failed to initialize chat. Please try again.');
         } finally {
           setIsLoading(false);
         }
       }
     };
-
-    initializeChatSession();
-  }, [documentIds, sessionId]);
-
-  // Remove polling logic since we don't wait for processing anymore
+    initializeChat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentIds, user]);
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || !sessionId) return;
-
+    if (!inputMessage.trim() || !user) return;
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       content: inputMessage,
       sender: 'user',
       timestamp: new Date().toISOString(),
     };
-
     setMessages(prev => [...prev, userMessage]);
     setInputMessage('');
     setIsTyping(true);
-
     try {
-      const response = await apiService.sendMessage(sessionId, inputMessage, documentIds);
+      const response = await apiService.sendMessage(user.id, inputMessage, documentIds);
       const botMessage: ChatMessage = {
         id: response.id,
         content: response.content,
@@ -78,7 +72,6 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
         sources: response.sources,
         documentReferences: response.documentReferences
       };
-
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Failed to send message:', error);
@@ -137,7 +130,6 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
             variant="outline" 
             onClick={() => {
               setError(null);
-              setSessionId(null);
             }}
           >
             Retry
@@ -165,7 +157,7 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
                 </span>
                 <span className="flex items-center text-green-600">
                   <div className="w-2 h-2 bg-green-500 rounded-full mr-1"></div>
-                  {sessionId ? 'Online' : 'Connecting...'}
+                  {user ? 'Online' : 'Connecting...'}
                 </span>
               </CardDescription>
             </div>
@@ -276,14 +268,14 @@ const ChatTab = ({ uploadedFiles, documentIds }: ChatTabProps) => {
               <Input
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
-                placeholder={sessionId ? "Ask a question about your course materials..." : "Connecting to chat service..."}
+                placeholder={user ? "Ask a question about your course materials..." : "Connecting to chat service..."}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                disabled={!sessionId}
+                disabled={!user}
                 className="flex-1"
               />
               <Button 
                 onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isTyping || !sessionId}
+                disabled={!inputMessage.trim() || isTyping || !user}
                 className="bg-blue-500 hover:bg-blue-600"
               >
                 <Send className="h-4 w-4" />

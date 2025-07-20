@@ -114,7 +114,7 @@ class GenAiController(
     fun createSession(
         @Valid @RequestBody request: CreateSessionRequest
     ): DeferredResult<ResponseEntity<Any>> {
-        logger.info("POST /genai/sessions for user: {}", request.sessionId)
+        logger.info("POST /genai/sessions for user: {}", request.userId)
         
         val result = DeferredResult<ResponseEntity<Any>>(600000L) // 10 minutes timeout
         
@@ -163,16 +163,16 @@ class GenAiController(
         return result
     }
     
-    @PostMapping("/sessions/{sessionId}/messages")
+    @PostMapping("/sessions/messages")
     fun addMessage(
-        @PathVariable sessionId: String,
+        @RequestHeader("X-User-ID") userId: String,
         @Valid @RequestBody request: PromptRequest
     ): DeferredResult<ResponseEntity<Any>> {
-        logger.info("POST /genai/sessions/{}/messages for user: {}", sessionId, request.sessionId)
+        logger.info("POST /genai/sessions/messages for user: {}", userId)
         
         val result = DeferredResult<ResponseEntity<Any>>(600000L) // 10 minutes timeout
         
-        genAiService.addMessageAsync(sessionId, request) { response, error ->
+        genAiService.addMessageAsync(userId, request) { response, error ->
             if (error != null) {
                 logger.error("Error adding message: {}", error.message, error)
                 result.setResult(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
@@ -404,16 +404,15 @@ class GenAiController(
         return result
     }
     
-    @GetMapping("/chat/sessions/{sessionId}")
+    @GetMapping("/chat/sessions")
     fun getChatSession(
-        @PathVariable sessionId: String,
         @RequestHeader("X-User-ID") userId: String
     ): DeferredResult<ResponseEntity<Any>> {
-        logger.info("GET /genai/chat/sessions/{} for user: {}", sessionId, userId)
+        logger.info("GET /genai/chat/sessions for user: {}", userId)
         
         val result = DeferredResult<ResponseEntity<Any>>(600000L) // 10 minutes timeout
         
-        genAiService.getChatSessionAsync(sessionId, userId) { response, error ->
+        genAiService.getChatSessionAsync(userId) { response, error ->
             if (error != null) {
                 logger.error("Error getting chat session: {}", error.message, error)
                 result.setResult(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
@@ -431,23 +430,22 @@ class GenAiController(
         return result
     }
     
-    @PostMapping("/chat/sessions/{sessionId}/messages")
+    @PostMapping("/chat/sessions/messages")
     fun sendChatMessage(
-        @PathVariable sessionId: String,
-        @Valid @RequestBody request: SendMessageRequest,
-        @RequestHeader("X-User-ID") userId: String
+        @RequestHeader("X-User-ID") userId: String,
+        @Valid @RequestBody request: SendMessageRequest
     ): DeferredResult<ResponseEntity<Any>> {
-        logger.info("POST /genai/chat/sessions/{}/messages for user: {}", sessionId, userId)
+        logger.info("POST /genai/chat/sessions/messages for user: {}", userId)
         
         val result = DeferredResult<ResponseEntity<Any>>(600000L) // 10 minutes timeout
         
-        genAiService.sendChatMessageAsync(sessionId, request, userId) { response, error ->
+        genAiService.sendChatMessageAsync(userId, request) { response, error ->
             if (error != null) {
                 logger.error("Error sending chat message: {}", error.message, error)
                 result.setResult(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     ErrorResponse(
-                        error = "Message sending failed",
-                        message = "Failed to send message: ${error.message}",
+                        error = "Chat message failed",
+                        message = "Failed to send chat message: ${error.message}",
                         timestamp = LocalDateTime.now().format(dateFormatter)
                     )
                 ))

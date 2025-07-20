@@ -200,12 +200,6 @@ export interface ChatSessionRequest {
   documentIds: string[];
 }
 
-export interface ChatSessionResponse {
-  sessionId: string;
-  messages: ChatMessage[];
-  documentsInContext: string[];
-}
-
 export interface ChatMessageRequest {
   message: string;
   documentIds?: string[];
@@ -540,39 +534,12 @@ class ApiService {
   }
 
   // Chat methods
-  async createChatSession(documentIds: string[]): Promise<ChatSessionResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/sessions`, {
+  async sendMessage(user_id: string, message: string, documentIds: string[] = []): Promise<ChatMessageResponse> {
+    const payload: any = { user_id, message, documentIds };
+    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/messages`, {
       method: 'POST',
       headers: this.getHeaders(),
-      body: JSON.stringify({ documentIds }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `Failed to create chat session: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  async getChatSession(sessionId: string): Promise<ChatSessionResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/sessions/${sessionId}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get chat session: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json();
-  }
-
-  async sendMessage(sessionId: string, message: string, documentIds: string[] = []): Promise<ChatMessageResponse> {
-    const response = await this.authenticatedFetch(`${this.baseUrl}/api/genai/chat/sessions/${sessionId}/messages`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ 
-        message,
-        documentIds 
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
