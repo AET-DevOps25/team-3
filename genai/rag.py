@@ -44,6 +44,7 @@ class RAGHelper:
         # Initialize Weaviate client
         weaviate_host = os.getenv("WEAVIATE_HOST", "localhost")
         weaviate_port = os.getenv("WEAVIATE_PORT", "8083")
+        
         try:
             self.weaviate_client = weaviate.connect_to_local(
                 host=weaviate_host,
