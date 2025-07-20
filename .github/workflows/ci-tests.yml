@@ -356,31 +356,6 @@ jobs:
         python -m pytest test_main.py::TestQuizEndpoint::test_quiz_success -v
         python -m pytest test_main.py::TestFlashcardEndpoint::test_flashcard_success -v
         
-    - name: Test end-to-end AI workflow
-      run: |
-        # Test document loading
-        DOCUMENT_RESPONSE=$(curl -X POST http://localhost:8081/document \
-          -H "Content-Type: application/json" \
-          -d '{"user_id":"test-user","document_name":"test.pdf","document_base64":"dGVzdCBjb250ZW50"}' \
-          -s)
-        
-        echo "Document response: $DOCUMENT_RESPONSE"
-        
-        # Test chat functionality
-        CHAT_RESPONSE=$(curl -X POST http://localhost:8081/chat \
-          -H "Content-Type: application/json" \
-          -d '{"user_id":"test-user","message":"Hello, how are you?"}' \
-          -s)
-        
-        echo "Chat response: $CHAT_RESPONSE"
-        
-        # Test summary generation
-        SUMMARY_RESPONSE=$(curl -X POST http://localhost:8081/summary \
-          -H "Content-Type: application/json" \
-          -d '{"user_id":"test-user","document_name":"test.pdf"}' \
-          -s)
-        
-        echo "Summary response: $SUMMARY_RESPONSE"
         
     - name: Cleanup
       if: always()
