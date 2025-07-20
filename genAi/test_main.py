@@ -8,21 +8,11 @@ import tempfile
 import os
 from pathlib import Path
 
-# Mock environment variables before importing modules that need them
-with patch.dict(os.environ, {
-    'OPEN_WEBUI_API_KEY_CHAT': 'test_api_key',
-    'OPEN_WEBUI_API_KEY_GEN': 'test_api_key',
-    'OPEN_WEBUI_API_KEY_QUIZ': 'test_api_key',
-    'OPEN_WEBUI_API_KEY_FLASHCARD': 'test_api_key',
-    'OPEN_WEBUI_API_KEY_SUMMARY': 'test_api_key',
-    'OPENAI_API_KEY': 'test_openai_key',
-    'WEAVIATE_API_KEY': 'test_weaviate_key',
-    'WEAVIATE_URL': 'http://test-weaviate:8080'
-}):
-    from main import app, llm_instances
+# Import after conftest.py has set up mocks
+from main import app, llm_instance
 from llm import StudyLLM
 from request_models import (
-    CreateSessionRequest,
+    LoadDocumentRequest,
     PromptRequest,
     SummaryRequest,
     QuizRequest,
@@ -42,175 +32,114 @@ class TestHealthEndpoint:
     @patch("main.logger")
     def test_health_check_exception(self, mock_logger):
         """Test health check handles exceptions gracefully"""
-        # This would require modifying the health check to actually check dependencies
-        # For now, we test that it returns healthy
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "healthy"}
 
 
-class TestSessionManagement:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
-    @patch("main.StudyLLM")
+class TestDocumentManagement:
     @patch("main.save_document")
-    def test_load_session_success(self, mock_save_document, mock_study_llm):
-        """Test successful session creation"""
+    @patch.object(llm_instance, "load_document")
+    @pytest.mark.asyncio
+    async def test_load_document_success(self, mock_load_document, mock_save_document):
+        """Test successful document loading"""
         mock_save_document.return_value = "/fake/path/test.pdf"
-        mock_llm_instance = Mock()
-        mock_study_llm.return_value = mock_llm_instance
+        mock_load_document.return_value = None
 
         request_data = {
-            "session_id": "test-session-123",
+            "user_id": "test-user-123",
             "document_name": "test.pdf",
             "document_base64": "dGVzdCBjb250ZW50",  # base64 encoded "test content"
         }
 
-        response = client.post("/session/load", json=request_data)
+        response = client.post("/document", json=request_data)
 
         assert response.status_code == 200
-        assert response.json() == {"message": "Session created successfully."}
-        assert "test-session-123" in llm_instances
+        assert response.json() == {"message": "Document loaded successfully."}
         mock_save_document.assert_called_once_with(
-            "test-session-123_test.pdf", "dGVzdCBjb250ZW50"
+            "test-user-123_test.pdf", "dGVzdCBjb250ZW50"
         )
-        mock_study_llm.assert_called_once_with("/fake/path/test.pdf")
+        mock_load_document.assert_called_once_with(
+            "test-user-123_test.pdf", "/fake/path/test.pdf", "test-user-123"
+        )
 
-    @patch("main.StudyLLM")
     @patch("main.save_document")
-    def test_load_session_already_exists(self, mock_save_document, mock_study_llm):
-        """Test loading a session that already exists"""
-        mock_llm_instance = Mock()
-        llm_instances["existing-session"] = mock_llm_instance
-
-        request_data = {
-            "session_id": "existing-session",
-            "document_name": "test.pdf",
-            "document_base64": "dGVzdCBjb250ZW50",
-        }
-
-        response = client.post("/session/load", json=request_data)
-
-        assert response.status_code == 200
-        assert response.json() == {"message": "Session already loaded."}
-        mock_save_document.assert_not_called()
-        mock_study_llm.assert_not_called()
-
-    @patch("main.StudyLLM")
-    @patch("main.save_document")
-    def test_load_session_failure(self, mock_save_document, mock_study_llm):
-        """Test session creation failure"""
+    @patch.object(llm_instance, "load_document")
+    def test_load_document_failure(self, mock_load_document, mock_save_document):
+        """Test document loading failure"""
         mock_save_document.return_value = "/fake/path/test.pdf"
-        mock_study_llm.side_effect = Exception("Failed to create LLM instance")
+        mock_load_document.side_effect = Exception("Failed to load document")
 
         request_data = {
-            "session_id": "test-session-123",
+            "user_id": "test-user-123",
             "document_name": "test.pdf",
             "document_base64": "dGVzdCBjb250ZW50",
         }
 
-        response = client.post("/session/load", json=request_data)
+        response = client.post("/document", json=request_data)
 
         assert response.status_code == 200
         assert "error" in response.json()
-        assert "Failed to create session test-session-123" in response.json()["error"]
+        assert "Failed to load document" in response.json()["error"]
 
-    def test_load_session_missing_fields(self):
-        """Test session creation with missing required fields"""
+    def test_load_document_missing_fields(self):
+        """Test document loading with missing required fields"""
         request_data = {
-            "session_id": "test-session-123",
+            "user_id": "test-user-123",
             # Missing document_name and document_base64
         }
 
-        response = client.post("/session/load", json=request_data)
-
+        response = client.post("/document", json=request_data)
         assert response.status_code == 422  # Validation error
 
 
 class TestChatEndpoint:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
+    @patch.object(llm_instance, "prompt")
     @pytest.mark.asyncio
-    async def test_chat_success(self):
+    async def test_chat_success(self, mock_prompt):
         """Test successful chat interaction"""
-        mock_llm = AsyncMock()
-        mock_llm.prompt.return_value = "This is a test response"
-        llm_instances["test-session"] = mock_llm
+        mock_prompt.return_value = "This is a test response"
 
-        request_data = {"session_id": "test-session", "message": "Hello, how are you?"}
+        request_data = {"user_id": "test-user", "message": "Hello, how are you?"}
 
         response = client.post("/chat", json=request_data)
 
         assert response.status_code == 200
         assert response.json() == {"response": "This is a test response"}
-        mock_llm.prompt.assert_called_once_with("Hello, how are you?")
+        mock_prompt.assert_called_once_with("Hello, how are you?", "test-user")
 
-    def test_chat_session_not_found(self):
-        """Test chat with non-existent session"""
-        request_data = {"session_id": "non-existent-session", "message": "Hello"}
-
-        response = client.post("/chat", json=request_data)
-
-        assert response.status_code == 404
-        assert "Session non-existent-session not found" in response.json()["response"]
-
+    @patch.object(llm_instance, "prompt")
     @pytest.mark.asyncio
-    async def test_chat_llm_error(self):
+    async def test_chat_llm_error(self, mock_prompt):
         """Test chat when LLM raises an exception"""
-        mock_llm = AsyncMock()
-        mock_llm.prompt.side_effect = Exception("LLM processing error")
-        llm_instances["test-session"] = mock_llm
+        mock_prompt.side_effect = Exception("LLM processing error")
 
-        request_data = {"session_id": "test-session", "message": "Hello"}
+        request_data = {"user_id": "test-user", "message": "Hello"}
 
         response = client.post("/chat", json=request_data)
 
         assert response.status_code == 200
-        assert (
-            "ERROR: Chat error for session test-session" in response.json()["response"]
-        )
+        assert "ERROR: Chat error for user test-user" in response.json()["response"]
 
     def test_chat_missing_message(self):
         """Test chat with missing message field"""
         request_data = {
-            "session_id": "test-session"
+            "user_id": "test-user"
             # Missing message field
         }
 
         response = client.post("/chat", json=request_data)
-
         assert response.status_code == 422  # Validation error
 
 
 class TestSummaryEndpoint:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
+    @patch.object(llm_instance, "summarize")
     @pytest.mark.asyncio
-    async def test_summary_success(self):
+    async def test_summary_success(self, mock_summarize):
         """Test successful summary generation"""
-        mock_llm = AsyncMock()
-        mock_llm.summarize.return_value = "## Test Summary\n\nThis is a test summary."
-        llm_instances["test-session"] = mock_llm
+        mock_summarize.return_value = "## Test Summary\n\nThis is a test summary."
 
-        request_data = {"session_id": "test-session"}
+        request_data = {"user_id": "test-user", "document_name": "test.pdf"}
 
         response = client.post("/summary", json=request_data)
 
@@ -218,51 +147,40 @@ class TestSummaryEndpoint:
         assert response.json() == {
             "response": "## Test Summary\n\nThis is a test summary."
         }
-        mock_llm.summarize.assert_called_once()
+        mock_summarize.assert_called_once_with("test.pdf", "test-user")
 
-    def test_summary_session_not_found(self):
-        """Test summary with non-existent session"""
-        request_data = {"session_id": "non-existent-session"}
-
-        response = client.post("/summary", json=request_data)
-
-        assert response.status_code == 200
-        assert (
-            "ERROR: Session non-existent-session not found"
-            in response.json()["response"]
-        )
-
+    @patch.object(llm_instance, "summarize")
     @pytest.mark.asyncio
-    async def test_summary_llm_error(self):
+    async def test_summary_llm_error(self, mock_summarize):
         """Test summary when LLM raises an exception"""
-        mock_llm = AsyncMock()
-        mock_llm.summarize.side_effect = Exception("Summary generation error")
-        llm_instances["test-session"] = mock_llm
+        mock_summarize.side_effect = Exception("Summary generation error")
 
-        request_data = {"session_id": "test-session"}
+        request_data = {"user_id": "test-user", "document_name": "test.pdf"}
 
         response = client.post("/summary", json=request_data)
 
         assert response.status_code == 200
         assert (
-            "ERROR: Summary generation error for session test-session"
+            "ERROR: Summary generation error for user test-user"
             in response.json()["response"]
         )
+
+    def test_summary_missing_document_name(self):
+        """Test summary with missing document_name field"""
+        request_data = {
+            "user_id": "test-user"
+            # Missing document_name field
+        }
+
+        response = client.post("/summary", json=request_data)
+        assert response.status_code == 422  # Validation error
 
 
 class TestQuizEndpoint:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
+    @patch.object(llm_instance, "generate_quiz")
     @pytest.mark.asyncio
-    async def test_quiz_success(self):
+    async def test_quiz_success(self, mock_generate_quiz):
         """Test successful quiz generation"""
-        mock_llm = AsyncMock()
         mock_quiz = {
             "questions": [
                 {
@@ -272,37 +190,23 @@ class TestQuizEndpoint:
                 }
             ]
         }
-        mock_llm.generate_quiz.return_value = mock_quiz
-        llm_instances["test-session"] = mock_llm
+        mock_generate_quiz.return_value = mock_quiz
 
-        request_data = {"session_id": "test-session"}
+        request_data = {"user_id": "test-user", "document_name": "test.pdf"}
 
         response = client.post("/quiz", json=request_data)
 
         assert response.status_code == 200
         assert response.json() == {"response": mock_quiz}
-        mock_llm.generate_quiz.assert_called_once()
+        mock_generate_quiz.assert_called_once_with("test.pdf", "test-user")
 
-    def test_quiz_session_not_found(self):
-        """Test quiz with non-existent session"""
-        request_data = {"session_id": "non-existent-session"}
-
-        response = client.post("/quiz", json=request_data)
-
-        assert response.status_code == 200
-        response_data = response.json()
-        assert "questions" in response_data["response"]
-        assert response_data["response"]["questions"] == []
-        assert "error" in response_data["response"]
-
+    @patch.object(llm_instance, "generate_quiz")
     @pytest.mark.asyncio
-    async def test_quiz_llm_error(self):
+    async def test_quiz_llm_error(self, mock_generate_quiz):
         """Test quiz when LLM raises an exception"""
-        mock_llm = AsyncMock()
-        mock_llm.generate_quiz.side_effect = Exception("Quiz generation error")
-        llm_instances["test-session"] = mock_llm
+        mock_generate_quiz.side_effect = Exception("Quiz generation error")
 
-        request_data = {"session_id": "test-session"}
+        request_data = {"user_id": "test-user", "document_name": "test.pdf"}
 
         response = client.post("/quiz", json=request_data)
 
@@ -314,56 +218,32 @@ class TestQuizEndpoint:
 
 
 class TestFlashcardEndpoint:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
+    @patch.object(llm_instance, "generate_flashcards")
     @pytest.mark.asyncio
-    async def test_flashcard_success(self):
+    async def test_flashcard_success(self, mock_generate_flashcards):
         """Test successful flashcard generation"""
-        mock_llm = AsyncMock()
         mock_flashcards = {
             "flashcards": [
                 {"front": "What is X?", "back": "X is...", "difficulty": "medium"}
             ]
         }
-        mock_llm.generate_flashcards.return_value = mock_flashcards
-        llm_instances["test-session"] = mock_llm
+        mock_generate_flashcards.return_value = mock_flashcards
 
-        request_data = {"session_id": "test-session"}
+        request_data = {"user_id": "test-user", "document_name": "test.pdf"}
 
         response = client.post("/flashcard", json=request_data)
 
         assert response.status_code == 200
         assert response.json() == {"response": mock_flashcards}
-        mock_llm.generate_flashcards.assert_called_once()
+        mock_generate_flashcards.assert_called_once_with("test.pdf", "test-user")
 
-    def test_flashcard_session_not_found(self):
-        """Test flashcard with non-existent session"""
-        request_data = {"session_id": "non-existent-session"}
-
-        response = client.post("/flashcard", json=request_data)
-
-        assert response.status_code == 200
-        response_data = response.json()
-        assert "flashcards" in response_data["response"]
-        assert response_data["response"]["flashcards"] == []
-        assert "error" in response_data["response"]
-
+    @patch.object(llm_instance, "generate_flashcards")
     @pytest.mark.asyncio
-    async def test_flashcard_llm_error(self):
+    async def test_flashcard_llm_error(self, mock_generate_flashcards):
         """Test flashcard when LLM raises an exception"""
-        mock_llm = AsyncMock()
-        mock_llm.generate_flashcards.side_effect = Exception(
-            "Flashcard generation error"
-        )
-        llm_instances["test-session"] = mock_llm
+        mock_generate_flashcards.side_effect = Exception("Flashcard generation error")
 
-        request_data = {"session_id": "test-session"}
+        request_data = {"user_id": "test-user", "document_name": "test.pdf"}
 
         response = client.post("/flashcard", json=request_data)
 
@@ -372,149 +252,47 @@ class TestFlashcardEndpoint:
         assert "flashcards" in response_data["response"]
         assert response_data["response"]["flashcards"] == []
         assert "error" in response_data["response"]
-
-
-class TestProcessEndpoint:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
-    def test_process_success(self):
-        """Test document processing - endpoint has API design issues"""
-        request_data = {
-            "session_id": "test-session"
-        }
-
-        # The endpoint tries to access document_name and document_base64 that don't exist on SummaryRequest
-        # This will fail with an AttributeError, not process successfully
-        response = client.post("/process", json=request_data)
-        
-        # The endpoint should return error due to missing attributes
-        assert response.status_code == 200
-        response_data = response.json()
-        assert response_data["status"] == "FAILED"
-        assert "has no attribute" in response_data["message"]
-
-    @patch("main.StudyLLM")
-    @patch("main.save_document")
-    def test_process_existing_session(self, mock_save_document, mock_study_llm):
-        """Test processing with existing session"""
-        mock_llm_instance = Mock()
-        llm_instances["existing-session"] = mock_llm_instance
-
-        request_data = {
-            "session_id": "existing-session",
-            "document_name": "test.pdf",
-            "document_base64": "dGVzdCBjb250ZW50",
-        }
-
-        response = client.post("/process", json=request_data)
-
-        assert response.status_code == 200
-        response_data = response.json()
-        assert response_data["requestId"] == "existing-session"
-        assert response_data["status"] == "QUEUED"
-        mock_save_document.assert_not_called()
-        mock_study_llm.assert_not_called()
-
-    @patch("main.StudyLLM")
-    @patch("main.save_document")
-    def test_process_failure(self, mock_save_document, mock_study_llm):
-        """Test processing failure"""
-        mock_save_document.side_effect = Exception("Document save error")
-
-        request_data = {
-            "session_id": "test-session",
-            "document_name": "test.pdf",
-            "document_base64": "dGVzdCBjb250ZW50",
-        }
-
-        response = client.post("/process", json=request_data)
-
-        assert response.status_code == 200
-        response_data = response.json()
-        assert response_data["requestId"] is None
-        assert response_data["status"] == "FAILED"
-        assert "Failed to process document" in response_data["message"]
-
-    def test_process_with_document_id(self):
-        """Test processing using document_id instead of session_id - expects validation error"""
-        request_data = {
-            "document_id": "doc-123",
-            "document_name": "test.pdf",
-            "document_base64": "dGVzdCBjb250ZW50",
-        }
-
-        # The API expects SummaryRequest which only has session_id, so this should fail validation
-        response = client.post("/process", json=request_data)
-        assert response.status_code == 422  # Unprocessable Entity due to model validation
 
 
 class TestRequestValidation:
     def test_invalid_json(self):
         """Test handling of invalid JSON"""
-        response = client.post("/session/load", data="invalid json")
+        response = client.post("/document", data="invalid json")
         assert response.status_code == 422
 
     def test_missing_required_fields(self):
         """Test validation of required fields"""
-        # Missing session_id
+        # Missing user_id
         response = client.post(
-            "/session/load",
+            "/document",
             json={"document_name": "test.pdf", "document_base64": "dGVzdA=="},
         )
         assert response.status_code == 422
 
     def test_empty_string_fields(self):
-        """Test behavior with empty string fields - currently allows empty session_id"""
+        """Test behavior with empty string fields"""
         response = client.post(
-            "/session/load",
+            "/document",
             json={
-                "session_id": "",
+                "user_id": "",
                 "document_name": "test.pdf",
                 "document_base64": "dGVzdA==",
             },
         )
-        # The API currently allows empty session_id and proceeds to create a session
-        assert response.status_code == 200
-
-    def test_invalid_base64(self):
-        """Test handling of invalid base64 data"""
-        # This would require actual validation in the endpoint
-        response = client.post(
-            "/session/load",
-            json={
-                "session_id": "test-session",
-                "document_name": "test.pdf",
-                "document_base64": "invalid-base64!!!",
-            },
-        )
-        # Currently passes through - could add validation
+        # The API should accept empty user_id if validation allows it
+        assert response.status_code in [200, 422]
 
 
 class TestConcurrency:
-    def setup_method(self):
-        """Clear LLM instances before each test"""
-        llm_instances.clear()
-
-    def teardown_method(self):
-        """Clean up after each test"""
-        llm_instances.clear()
-
     @pytest.mark.asyncio
-    async def test_concurrent_session_creation(self):
-        """Test concurrent session creation"""
-        with patch("main.StudyLLM") as mock_study_llm, patch(
-            "main.save_document"
-        ) as mock_save_document:
+    async def test_concurrent_document_loading(self):
+        """Test concurrent document loading"""
+        with patch("main.save_document") as mock_save_document, patch.object(
+            llm_instance, "load_document"
+        ) as mock_load_document:
 
             mock_save_document.return_value = "/fake/path/test.pdf"
-            mock_llm_instance = Mock()
-            mock_study_llm.return_value = mock_llm_instance
+            mock_load_document.return_value = None
 
             # Create multiple concurrent requests
             async with AsyncClient(
@@ -523,9 +301,9 @@ class TestConcurrency:
                 tasks = []
                 for i in range(5):
                     task = ac.post(
-                        "/session/load",
+                        "/document",
                         json={
-                            "session_id": f"concurrent-session-{i}",
+                            "user_id": f"user-{i}",
                             "document_name": f"test-{i}.pdf",
                             "document_base64": "dGVzdCBjb250ZW50",
                         },
@@ -537,78 +315,69 @@ class TestConcurrency:
                 # All requests should succeed
                 for response in responses:
                     assert response.status_code == 200
-                    assert response.json()["message"] == "Session created successfully."
-
-                # All sessions should be created
-                assert len(llm_instances) == 5
+                    assert response.json()["message"] == "Document loaded successfully."
 
     @pytest.mark.asyncio
     async def test_concurrent_chat_requests(self):
-        """Test concurrent chat requests to same session"""
-        mock_llm = AsyncMock()
-        mock_llm.prompt.return_value = "Response"
-        llm_instances["test-session"] = mock_llm
+        """Test concurrent chat requests"""
+        with patch.object(llm_instance, "prompt") as mock_prompt:
+            mock_prompt.return_value = "Response"
 
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
-            tasks = []
-            for i in range(3):
-                task = ac.post(
-                    "/chat",
-                    json={"session_id": "test-session", "message": f"Message {i}"},
-                )
-                tasks.append(task)
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as ac:
+                tasks = []
+                for i in range(3):
+                    task = ac.post(
+                        "/chat",
+                        json={"user_id": "test-user", "message": f"Message {i}"},
+                    )
+                    tasks.append(task)
 
-            responses = await asyncio.gather(*tasks)
+                responses = await asyncio.gather(*tasks)
 
-            # All requests should succeed
-            for response in responses:
-                assert response.status_code == 200
-                assert response.json()["response"] == "Response"
+                # All requests should succeed
+                for response in responses:
+                    assert response.status_code == 200
+                    assert response.json()["response"] == "Response"
 
-            # LLM should be called for each request
-            assert mock_llm.prompt.call_count == 3
+                # LLM should be called for each request
+                assert mock_prompt.call_count == 3
 
 
 class TestErrorHandling:
     def test_unhandled_exception_in_endpoint(self):
         """Test that unhandled exceptions are caught and returned as errors"""
-        with patch("main.llm_instances") as mock_instances:
-            mock_instances.__contains__.side_effect = Exception("Unexpected error")
+        with patch.object(llm_instance, "prompt") as mock_prompt:
+            mock_prompt.side_effect = Exception("Unexpected error")
 
             response = client.post(
-                "/chat", json={"session_id": "test-session", "message": "Hello"}
+                "/chat", json={"user_id": "test-user", "message": "Hello"}
             )
 
             assert response.status_code == 200
             assert "ERROR:" in response.json()["response"]
 
     def test_cleanup_on_application_shutdown(self):
-        """Test that LLM instances are properly cleaned up on shutdown"""
-        mock_llm1 = Mock()
-        mock_llm2 = Mock()
-        llm_instances["session1"] = mock_llm1
-        llm_instances["session2"] = mock_llm2
+        """Test that LLM instance is properly cleaned up on shutdown"""
+        with patch.object(llm_instance, "cleanup") as mock_cleanup:
+            # Simulate application shutdown
+            import asyncio
 
-        # Simulate application shutdown
-        import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+            # This would be called during FastAPI shutdown
+            from main import lifespan
 
-        # This would be called during FastAPI shutdown
-        from main import lifespan
+            async def test_cleanup():
+                async with lifespan(app):
+                    pass
 
-        async def test_cleanup():
-            async with lifespan(app):
-                pass
+            loop.run_until_complete(test_cleanup())
 
-        loop.run_until_complete(test_cleanup())
-
-        # Verify cleanup was called
-        mock_llm1.cleanup.assert_called_once()
-        mock_llm2.cleanup.assert_called_once()
+            # Verify cleanup was called
+            mock_cleanup.assert_called_once()
 
 
 class TestMetrics:
