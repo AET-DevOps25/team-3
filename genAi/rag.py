@@ -54,10 +54,7 @@ class RAGHelper:
             grpc_host=weaviate_host,
             grpc_port=50051,
             grpc_secure=False,
-            skip_init_checks=True,
-            additional_config=weaviate.init.AdditionalConfig(
-                timeout=weaviate.init.Timeout(init=60)
-            )
+            skip_init_checks=True
         )
         
         # Load documents

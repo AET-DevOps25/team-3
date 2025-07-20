@@ -1,13 +1,14 @@
-name: Deploy StudyMate to Kubernetes
+name: Deploy to Kubernetes
 
 on:
   push:
     branches: [main]
     paths:
-      - 'client/**'
       - 'server/**'
+      - 'client/**'
       - 'genAi/**'
       - 'infra/helm/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       domain:
@@ -34,7 +35,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup kubeconfig
+      - name: Setup Kubernetes tools
         run: |
           mkdir -p ~/.kube
           cat > ~/.kube/config << 'EOF'
