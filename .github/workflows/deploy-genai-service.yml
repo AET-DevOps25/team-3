@@ -167,12 +167,12 @@ jobs:
           echo "🔍 Verifying GenAI service deployment..."
           
           # Wait for pod to be ready
-            kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=genai-service -n study-mate --timeout=300s || {
-    echo "❌ GenAI service pod failed to become ready"
-    echo "🔍 Pod status:"
-    kubectl get pods -n study-mate -l app.kubernetes.io/component=genai-service -o wide
-    echo "🔍 Pod logs:"
-    kubectl logs -l app.kubernetes.io/component=genai-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=genai-service -n study-mate --timeout=300s || {
+            echo "❌ GenAI service pod failed to become ready"
+            echo "🔍 Pod status:"
+            kubectl get pods -n study-mate -l app.kubernetes.io/component=genai-service -o wide
+            echo "🔍 Pod logs:"
+            kubectl logs -l app.kubernetes.io/component=genai-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
             exit 1
           }
           
@@ -186,13 +186,13 @@ jobs:
           kubectl port-forward svc/study-mate-genai-service 8085:8085 -n study-mate &
           PF_PID=$!
           sleep 10
-          
+
           if curl -f http://localhost:8085/actuator/health > /dev/null 2>&1; then
             echo "✅ GenAI service health check passed"
           else
             echo "❌ GenAI service health check failed"
           fi
-          
+
           kill $PF_PID 2>/dev/null || true
 
       - name: Deployment Summary

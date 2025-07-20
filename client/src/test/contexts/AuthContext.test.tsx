@@ -97,7 +97,7 @@ describe('AuthContext', () => {
   it('should handle login failure', async () => {
     // Override the default login handler to return an error
     server.use(
-      http.post('http://localhost:3000/api/auth/login', () => {
+      http.post('http://localhost:8099/api/auth/login', () => {
         return HttpResponse.json(
           { error: 'Invalid credentials' },
           { status: 401 }
@@ -143,7 +143,7 @@ describe('AuthContext', () => {
   it('should handle registration failure for existing user', async () => {
     // Override the default register handler to return an error
     server.use(
-      http.post('http://localhost:3000/api/auth/register', () => {
+      http.post('http://localhost:8099/api/auth/register', () => {
         return HttpResponse.json(
           { error: 'Username already exists' },
           { status: 409 }
@@ -229,7 +229,7 @@ describe('AuthContext', () => {
     
     // Override the me endpoint to return 401
     server.use(
-      http.get('http://localhost:3000/api/auth/me', () => {
+      http.get('http://localhost:8099/api/auth/me', () => {
         return HttpResponse.json(
           { error: 'Unauthorized' },
           { status: 401 }
@@ -254,7 +254,7 @@ describe('AuthContext', () => {
     
     // Mock a delayed response
     server.use(
-      http.post('http://localhost:3000/api/auth/login', async () => {
+      http.post('http://localhost:8099/api/auth/login', async () => {
         await new Promise(resolve => setTimeout(resolve, 100))
         return HttpResponse.json({
           token: 'mock-jwt-token',
@@ -279,7 +279,7 @@ describe('AuthContext', () => {
   it('should handle network errors gracefully', async () => {
     // Mock network error
     server.use(
-      http.post('http://localhost:3000/api/auth/login', () => {
+      http.post('http://localhost:8099/api/auth/login', () => {
         return HttpResponse.error()
       })
     )
@@ -300,6 +300,16 @@ describe('AuthContext', () => {
   })
 
   it('should handle concurrent login attempts', async () => {
+    // Mock successful login for this test
+    server.use(
+      http.post('http://localhost:8099/api/auth/login', () => {
+        return HttpResponse.json({
+          token: 'mock-jwt-token',
+          user: { id: 1, username: 'testuser', email: 'test@example.com' },
+        })
+      })
+    )
+    
     const user = userEvent.setup()
     render(<TestComponent />, { wrapper: TestWrapper })
     

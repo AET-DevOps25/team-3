@@ -14,9 +14,6 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.web.reactive.function.client.WebClient
-import org.springframework.http.MediaType
-import org.springframework.web.reactive.function.client.WebClientResponseException
 
 @Service
 class GenAiService(
@@ -47,15 +44,15 @@ class GenAiService(
                 val fileContent = fileInfo["fileContent"] ?: ""
                 val fileName = fileInfo["fileName"] ?: "document.pdf"
 
-                // Step 2: Load the session in the Python GenAI worker
+                // Step 2: Load the document in the Python GenAI worker
                 val sessionRequest = mapOf(
-                    "session_id" to request.documentId,
+                    "user_id" to request.userId,
                     "document_name" to fileName,
                     "document_base64" to fileContent
                 )
 
                 restTemplate.postForEntity(
-                    "$genaiBackendUrl/session/load",
+                    "$genaiBackendUrl/document",
                     sessionRequest,
                     Void::class.java
                 )
@@ -65,16 +62,16 @@ class GenAiService(
                 // Step 3: Trigger the actual processing based on the type
                 when (request.processingType) {
                     ProcessingType.SUMMARY -> {
-                        processSummaryOnly(request.documentId, fileName, callback)
+                        processSummaryOnly(request.documentId, fileName, request.userId, callback)
                     }
                     ProcessingType.QUIZ -> {
-                        processQuizOnly(request.documentId, callback)
+                        processQuizOnly(request.documentId, request.userId, fileName, callback)
                     }
                     ProcessingType.FLASHCARD -> {
-                        processFlashcardsOnly(request.documentId, callback)
+                        processFlashcardsOnly(request.documentId, request.userId, fileName, callback)
                     }
                     ProcessingType.ALL -> {
-                        processAllContentTypes(request.documentId, fileName, callback)
+                        processAllContentTypes(request.documentId, fileName, request.userId, callback)
                     }
                 }
             } catch (e: Exception) {
@@ -115,10 +112,10 @@ class GenAiService(
         logger.info("Processing chat request for user: {}", request.userId)
         
         return try {
-            val sessionId = request.sessionId ?: UUID.randomUUID().toString()
+            val userId = request.userId ?: UUID.randomUUID().toString()
             val chatRequest = mapOf(
                 "message" to request.message,
-                "session_id" to sessionId
+                "user_id" to userId
             )
             
             val response = restTemplate.postForObject(
@@ -129,14 +126,14 @@ class GenAiService(
             
             ChatResponse(
                 response = response["response"] as String,
-                sessionId = sessionId,  // Use the original sessionId since Python doesn't return it
+                sessionId = userId,
                 timestamp = LocalDateTime.now().format(dateFormatter)
             )
         } catch (e: Exception) {
             logger.error("Error processing chat request: {}", e.message, e)
             ChatResponse(
                 response = "Sorry, I encountered an error processing your request.",
-                sessionId = request.sessionId ?: UUID.randomUUID().toString(),
+                sessionId = request.userId ?: UUID.randomUUID().toString(),
                 timestamp = LocalDateTime.now().format(dateFormatter)
             )
         }
@@ -145,12 +142,12 @@ class GenAiService(
     fun chatAsync(request: ChatRequest, callback: (ChatResponse?, Exception?) -> Unit) {
         CompletableFuture.runAsync {
             try {
-                logger.info("Processing chat request for user: {}", request.userId)
+                logger.info("Processing async chat request for user: {}", request.userId)
                 
-                val sessionId = request.sessionId ?: UUID.randomUUID().toString()
+                val userId = request.userId ?: UUID.randomUUID().toString()
                 val chatRequest = mapOf(
                     "message" to request.message,
-                    "session_id" to sessionId
+                    "user_id" to userId
                 )
                 
                 val response = restTemplate.postForObject(
@@ -163,14 +160,14 @@ class GenAiService(
                 
                 callback(ChatResponse(
                     response = response["response"] as String,
-                    sessionId = sessionId,  // Use the original sessionId since Python doesn't return it
+                    sessionId = userId,
                     timestamp = LocalDateTime.now().format(dateFormatter)
                 ), null)
             } catch (e: Exception) {
-                logger.error("Error processing chat request: {}", e.message, e)
+                logger.error("Error processing async chat request: {}", e.message, e)
                 callback(ChatResponse(
                     response = "Sorry, I encountered an error processing your request.",
-                    sessionId = request.sessionId ?: UUID.randomUUID().toString(),
+                    sessionId = request.userId ?: UUID.randomUUID().toString(),
                     timestamp = LocalDateTime.now().format(dateFormatter)
                 ), e)
             }
@@ -182,13 +179,13 @@ class GenAiService(
         
         return try {
             val sessionRequest = mapOf(
-                "session_id" to request.sessionId,
+                "user_id" to request.sessionId,
                 "document_name" to request.documentName,
                 "document_content" to request.documentBase64
             )
             
             val response = restTemplate.postForObject(
-                "$genaiBackendUrl/sessions",
+                "$genaiBackendUrl/document",
                 sessionRequest,
                 Map::class.java
             )!!
@@ -206,13 +203,13 @@ class GenAiService(
                 logger.info("Creating session: {} for document: {}", request.sessionId, request.documentName)
                 
                 val sessionRequest = mapOf(
-                    "session_id" to request.sessionId,
+                    "user_id" to request.sessionId,
                     "document_name" to request.documentName,
-                    "document_base64" to request.documentBase64  // Changed from document_content to document_base64
+                    "document_base64" to request.documentBase64
                 )
                 
                 val response = restTemplate.postForObject(
-                    "$genaiBackendUrl/session/load",  // Changed from /sessions to /session/load
+                    "$genaiBackendUrl/document",
                     sessionRequest,
                     Map::class.java
                 )!!
@@ -227,12 +224,12 @@ class GenAiService(
         }
     }
 
-    fun getSession(sessionId: String, userId: String): GenAiResponse {
-        logger.info("Getting session: {} for user: {}", sessionId, userId)
+    fun getSession(userId: String): GenAiResponse {
+        logger.info("Getting session: {} for user: {}", userId, userId)
         
         return try {
             val response = restTemplate.getForObject(
-                "$genaiBackendUrl/sessions/$sessionId",
+                "$genaiBackendUrl/sessions/$userId",
                 Map::class.java
             )!!
             
@@ -243,16 +240,16 @@ class GenAiService(
         }
     }
 
-    fun getSessionAsync(sessionId: String, userId: String, callback: (GenAiResponse?, Exception?) -> Unit) {
+    fun getSessionAsync(userId: String, callback: (GenAiResponse?, Exception?) -> Unit) {
         CompletableFuture.runAsync {
             try {
-                logger.info("Getting session: {} for user: {}", sessionId, userId)
+                logger.info("Getting session for user: {}", userId)
                 
                 // Python backend doesn't have a GET session endpoint, so we just return success if session exists
                 // We could check health endpoint or just assume session exists since this is mainly for compatibility
-                logger.warn("Get session endpoint not implemented in Python backend, returning success for session: {}", sessionId)
+                logger.warn("Get session endpoint not implemented in Python backend, returning success for user: {}", userId)
                 
-                callback(GenAiResponse(response = "Session active: $sessionId"), null)
+                callback(GenAiResponse(response = "Session active for user: $userId"), null)
             } catch (e: Exception) {
                 logger.error("Error getting session: {}", e.message, e)
                 callback(GenAiResponse(response = "Failed to get session: ${e.message}"), e)
@@ -265,7 +262,7 @@ class GenAiService(
         
         return try {
             val messageRequest = mapOf(
-                "session_id" to sessionId,
+                "user_id" to sessionId,
                 "message" to request.message
             )
             
@@ -289,12 +286,12 @@ class GenAiService(
                 
                 // Use the chat endpoint since sessions/$sessionId/messages doesn't exist in Python backend
                 val messageRequest = mapOf(
-                    "session_id" to sessionId,
+                    "user_id" to sessionId,
                     "message" to request.message
                 )
                 
                 val response = restTemplate.postForObject(
-                    "$genaiBackendUrl/chat",  // Changed from /sessions/$sessionId/messages to /chat
+                    "$genaiBackendUrl/chat",
                     messageRequest,
                     Map::class.java
                 )!!
@@ -350,7 +347,8 @@ class GenAiService(
                 logger.info("Generating quiz for user: {}", request.userId)
                 
                 val quizRequest = mapOf(
-                    "session_id" to request.documentId  // Changed to match Python backend expectation
+                    "user_id" to request.userId,
+                    "document_name" to "document"  // Python backend expects document_name
                 )
                 
                 val response = restTemplate.postForObject(
@@ -417,7 +415,8 @@ class GenAiService(
                 
                 // Since Python backend doesn't persist quiz data, we regenerate it
                 val quizRequest = mapOf(
-                    "session_id" to documentId
+                    "user_id" to userId,
+                    "document_name" to "document"
                 )
                 
                 val response = restTemplate.postForObject(
@@ -484,7 +483,8 @@ class GenAiService(
                 
                 // Regenerate by calling the quiz endpoint again
                 val quizRequest = mapOf(
-                    "session_id" to documentId
+                    "user_id" to userId,
+                    "document_name" to "document"
                 )
                 
                 val response = restTemplate.postForObject(
@@ -517,11 +517,12 @@ class GenAiService(
     }
     
     // Summary methods
-    private fun generateSummary(documentId: String, fileName: String): SummaryResponse {
+    private fun generateSummary(documentId: String, fileName: String, userId: String): SummaryResponse {
         try {
             logger.info("Request sent to generate summary for document: {}", documentId)
             val summaryRequest = mapOf(
-                "session_id" to documentId
+                "user_id" to userId,
+                "document_name" to fileName
             )
             val response = restTemplate.postForObject(
                 "$genaiBackendUrl/summary",
@@ -576,19 +577,19 @@ class GenAiService(
                 val fileName = fileInfo["fileName"] ?: "document.pdf"
 
                 val sessionRequest = mapOf(
-                    "session_id" to request.documentId,
+                    "user_id" to request.userId,
                     "document_name" to fileName,
                     "document_base64" to fileContent
                 )
 
                 restTemplate.postForEntity(
-                    "$genaiBackendUrl/session/load",
+                    "$genaiBackendUrl/document",
                     sessionRequest,
                     Void::class.java
                 )
                 logger.info("Session loaded successfully for document: {}", request.documentId)
 
-                val summaryResponse = generateSummary(request.documentId, fileName)
+                val summaryResponse = generateSummary(request.documentId, fileName, request.userId)
                 if (summaryResponse.status == "error") {
                     callback(summaryResponse, RuntimeException(summaryResponse.error))
                 } else {
@@ -614,7 +615,8 @@ class GenAiService(
                 logger.info("Generating flashcards for session: {}", request.sessionId)
                 
                 val flashcardRequest = mapOf(
-                    "session_id" to request.sessionId
+                    "user_id" to request.sessionId,
+                    "document_name" to "document"
                 )
                 
                 val response = restTemplate.postForObject(
@@ -649,7 +651,8 @@ class GenAiService(
                 
                 // Since Python backend doesn't persist flashcard data, we regenerate it
                 val flashcardRequest = mapOf(
-                    "session_id" to documentId
+                    "user_id" to userId,
+                    "document_name" to "document"
                 )
                 
                 val response = restTemplate.postForObject(
@@ -683,7 +686,8 @@ class GenAiService(
                 
                 // Regenerate by calling the flashcard endpoint again
                 val flashcardRequest = mapOf(
-                    "session_id" to documentId
+                    "user_id" to userId,
+                    "document_name" to "document"
                 )
                 
                 val response = restTemplate.postForObject(
@@ -711,10 +715,10 @@ class GenAiService(
     }
 
     // Helper methods for processing different content types
-    private fun processSummaryOnly(documentId: String, fileName: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
+    private fun processSummaryOnly(documentId: String, fileName: String, userId: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
         try {
             logger.info("Triggering summary generation for document: {}", documentId)
-            val summaryResponse = generateSummary(documentId, fileName)
+            val summaryResponse = generateSummary(documentId, fileName, userId)
 
             logger.info("Received response from generateSummary: {}", summaryResponse)
 
@@ -757,12 +761,13 @@ class GenAiService(
         }
     }
 
-    private fun processQuizOnly(documentId: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
+    private fun processQuizOnly(documentId: String, userId: String, fileName: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
         try {
             logger.info("Triggering quiz generation for document: {}", documentId)
             
             val quizRequest = mapOf(
-                "session_id" to documentId
+                "user_id" to userId,
+                "document_name" to fileName
             )
             
             val response = restTemplate.postForObject(
@@ -786,12 +791,13 @@ class GenAiService(
         }
     }
 
-    private fun processFlashcardsOnly(documentId: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
+    private fun processFlashcardsOnly(documentId: String, userId: String, fileName: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
         try {
             logger.info("Triggering flashcard generation for document: {}", documentId)
             
             val flashcardRequest = mapOf(
-                "session_id" to documentId
+                "user_id" to userId,
+                "document_name" to fileName
             )
             
             val response = restTemplate.postForObject(
@@ -822,7 +828,7 @@ class GenAiService(
         }
     }
 
-    private fun processAllContentTypes(documentId: String, fileName: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
+    private fun processAllContentTypes(documentId: String, fileName: String, userId: String, callback: (Map<String, Any>?, Exception?) -> Unit) {
         try {
             logger.info("Triggering parallel generation of all content types for document: {}", documentId)
             
@@ -830,7 +836,7 @@ class GenAiService(
             val summaryFuture = CompletableFuture.supplyAsync {
                 try {
                     logger.info("Starting summary generation in parallel for document: {}", documentId)
-                    val summaryResponse = generateSummary(documentId, fileName)
+                    val summaryResponse = generateSummary(documentId, fileName, userId)
                     if (summaryResponse.status == "error") {
                         throw RuntimeException(summaryResponse.error ?: "Summary generation failed")
                     }
@@ -845,7 +851,7 @@ class GenAiService(
             val quizFuture = CompletableFuture.supplyAsync {
                 try {
                     logger.info("Starting quiz generation in parallel for document: {}", documentId)
-                    val quizRequest = mapOf("session_id" to documentId)
+                    val quizRequest = mapOf("user_id" to userId, "document_name" to fileName)
                     val response = restTemplate.postForObject("$genaiBackendUrl/quiz", quizRequest, Map::class.java)!!
                     logger.info("Quiz generation completed for document: {}", documentId)
                     response["response"] as? Map<String, Any> ?: emptyMap()
@@ -858,7 +864,7 @@ class GenAiService(
             val flashcardFuture = CompletableFuture.supplyAsync {
                 try {
                     logger.info("Starting flashcard generation in parallel for document: {}", documentId)
-                    val flashcardRequest = mapOf("session_id" to documentId)
+                    val flashcardRequest = mapOf("user_id" to userId, "document_name" to fileName)
                     val response = restTemplate.postForObject("$genaiBackendUrl/flashcard", flashcardRequest, Map::class.java)!!
                     val responseData = response["response"] as? Map<String, Any>
                     val flashcardsData = (responseData?.get("flashcards") as? List<Map<String, Any>> ?: emptyList()).map { card ->
@@ -1002,23 +1008,15 @@ class GenAiService(
         }
     }
 
-    // New chat session management methods for frontend compatibility
-    fun createChatSessionAsync(request: ChatSessionRequest, userId: String, callback: (ChatSessionResponse?, Exception?) -> Unit) {
+    // New method to load document for chat only (no content generation)
+    fun loadDocumentForChatAsync(documentId: String, userId: String, callback: (Boolean, Exception?) -> Unit) {
         CompletableFuture.runAsync {
             try {
-                logger.info("Creating chat session for user: {} with documents: {}", userId, request.documentIds)
+                logger.info("Loading document {} for chat only (user: {})", documentId, userId)
                 
-                if (request.documentIds.isEmpty()) {
-                    throw RuntimeException("At least one document is required to create a chat session")
-                }
-                
-                // For now, we'll use the first document as the primary session
-                // In the future, we could implement multi-document sessions
-                val primaryDocumentId = request.documentIds.first()
-                
-                // Get document content from document service
+                // Step 1: Get the document's base64 content from the document-service
                 val fileInfo = restTemplate.exchange(
-                    "$documentServiceUrl/api/documents/internal/${primaryDocumentId}/file",
+                    "$documentServiceUrl/api/documents/internal/${documentId}/file",
                     HttpMethod.GET,
                     null,
                     object : ParameterizedTypeReference<Map<String, String>>() {}
@@ -1026,93 +1024,29 @@ class GenAiService(
 
                 val fileContent = fileInfo["fileContent"] ?: ""
                 val fileName = fileInfo["fileName"] ?: "document.pdf"
-                
-                // Create session with Python backend
-                val sessionId = UUID.randomUUID().toString()
+
+                // Step 2: Load the document in Python for this user (no content generation)
                 val sessionRequest = mapOf(
-                    "session_id" to sessionId,
+                    "user_id" to userId,
                     "document_name" to fileName,
                     "document_base64" to fileContent
                 )
 
                 restTemplate.postForEntity(
-                    "$genaiBackendUrl/session/load",
+                    "$genaiBackendUrl/document",
                     sessionRequest,
                     Void::class.java
                 )
 
-                logger.info("Chat session created successfully: {}", sessionId)
+                logger.info("Document {} loaded successfully for chat (user: {})", documentId, userId)
+                callback(true, null)
                 
-                // Return response matching frontend expectations
-                val response = ChatSessionResponse(
-                    sessionId = sessionId,
-                    messages = emptyList(), // Start with empty messages
-                    documentsInContext = request.documentIds
-                )
-                
-                callback(response, null)
             } catch (e: Exception) {
-                logger.error("Error creating chat session: {}", e.message, e)
-                callback(null, e)
+                logger.error("Error loading document {} for chat: {}", documentId, e.message, e)
+                callback(false, e)
             }
         }
     }
-    
-    fun getChatSessionAsync(sessionId: String, userId: String, callback: (ChatSessionResponse?, Exception?) -> Unit) {
-        CompletableFuture.runAsync {
-            try {
-                logger.info("Getting chat session: {} for user: {}", sessionId, userId)
-                
-                // For now, return a basic session structure
-                // In a full implementation, we'd store and retrieve chat history from a database
-                val response = ChatSessionResponse(
-                    sessionId = sessionId,
-                    messages = emptyList(), // Would load from database in real implementation
-                    documentsInContext = emptyList() // Would load from database in real implementation
-                )
-                
-                callback(response, null)
-            } catch (e: Exception) {
-                logger.error("Error getting chat session: {}", e.message, e)
-                callback(null, e)
-            }
-        }
-    }
-    
-    fun sendChatMessageAsync(sessionId: String, request: SendMessageRequest, userId: String, callback: (SendMessageResponse?, Exception?) -> Unit) {
-        CompletableFuture.runAsync {
-            try {
-                logger.info("Sending message to session: {} for user: {}", sessionId, userId)
-                
-                // Send message to Python backend
-                val chatRequest = mapOf(
-                    "session_id" to sessionId,
-                    "message" to request.message
-                )
-                
-                val response = restTemplate.postForObject(
-                    "$genaiBackendUrl/chat",
-                    chatRequest,
-                    Map::class.java
-                )!!
-                
-                logger.info("Received chat response: {}", response)
-                
-                // Transform response to match frontend expectations
-                val messageResponse = SendMessageResponse(
-                    id = UUID.randomUUID().toString(),
-                    content = response["response"] as String,
-                    sender = "bot",
-                    timestamp = LocalDateTime.now().format(dateFormatter),
-                    sources = null, // Would extract from response in full implementation
-                    documentReferences = null // Would extract from response in full implementation
-                )
-                
-                callback(messageResponse, null)
-            } catch (e: Exception) {
-                logger.error("Error sending chat message: {}", e.message, e)
-                callback(null, e)
-            }
-        }
-    }
+
+
 } 
