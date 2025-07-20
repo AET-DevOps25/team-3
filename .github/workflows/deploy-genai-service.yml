@@ -140,12 +140,12 @@ jobs:
           echo "🔍 Verifying GenAI service deployment..."
           
           # Wait for pod to be ready
-            kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=genai-service -n study-mate --timeout=300s || {
-    echo "❌ GenAI service pod failed to become ready"
-    echo "🔍 Pod status:"
-    kubectl get pods -n study-mate -l app.kubernetes.io/component=genai-service -o wide
-    echo "🔍 Pod logs:"
-    kubectl logs -l app.kubernetes.io/component=genai-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=genai-service -n study-mate --timeout=300s || {
+            echo "❌ GenAI service pod failed to become ready"
+            echo "🔍 Pod status:"
+            kubectl get pods -n study-mate -l app.kubernetes.io/component=genai-service -o wide
+            echo "🔍 Pod logs:"
+            kubectl logs -l app.kubernetes.io/component=genai-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
             exit 1
           }
           
