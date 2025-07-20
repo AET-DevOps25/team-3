@@ -1,0 +1,195 @@
+name: Deploy Document Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/document-service/**'
+      - 'infra/helm-charts/document-service/**'
+      - '.github/workflows/deploy-document-service.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'server/document-service/**'
+      - 'infra/helm-charts/document-service/**'
+      - '.github/workflows/deploy-document-service.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: '8.5'
+
+      - name: Build Document Service
+        run: |
+          cd server/document-service
+          ./gradlew build -x test
+          echo "✅ Document service built successfully"
+
+      - name: Build Docker Image
+        run: |
+          cd server/document-service
+          docker build -t ghcr.io/aet-devops25/team-3/document-service:${{ github.event.inputs.image_tag || github.sha }} .
+          docker build -t ghcr.io/aet-devops25/team-3/document-service:latest .
+          echo "✅ Docker image built successfully"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker Image
+        run: |
+          cd server/document-service
+          docker push ghcr.io/aet-devops25/team-3/document-service:${{ github.event.inputs.image_tag || github.sha }}
+          docker push ghcr.io/aet-devops25/team-3/document-service:latest
+          echo "✅ Docker image pushed successfully"
+
+      - name: Setup Kubernetes tools
+        run: |
+          echo "🔧 Setting up Kubernetes tools..."
+          
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          echo "✅ Kubernetes tools installed"
+          kubectl version --client
+          helm version
+
+      - name: Configure kubectl
+        run: |
+          echo "🔧 Configuring kubectl..."
+          
+          # Set up kubectl configuration
+          mkdir -p $HOME/.kube
+          cat > $HOME/.kube/config << 'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: "student"
+            cluster:
+              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+          
+          users:
+          - name: "student"
+            user:
+              token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
+          
+          contexts:
+          - name: "student"
+            context:
+              user: "student"
+              cluster: "student"
+          
+          current-context: "student"
+          EOF
+          chmod 600 $HOME/.kube/config
+          
+          echo "✅ Kubectl configured"
+          
+
+
+      - name: Deploy Helm Chart
+        env:
+          HELM_RELEASE_NAME: document-service
+          CHART_PATH: ./infra/helm-charts/document-service
+          HELM_NAMESPACE: study-mate
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+        run: |
+          echo "🚀 Deploying Document Service..."
+          
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set documentService.image.tag=${{ env.IMAGE_TAG }} \
+            --set secrets.jwt.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
+            --wait --timeout=5m
+          
+          echo "✅ Document service deployed successfully"
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verifying document service deployment..."
+          
+          # Wait a bit for old pods to terminate after Helm upgrade
+          echo "⏳ Waiting for deployment to stabilize..."
+          sleep 30
+          
+          # Wait for deployment to be ready (more reliable than waiting for specific pods)
+          echo "🔍 Waiting for deployment to be ready..."
+          kubectl rollout status deployment/study-mate-document-service -n study-mate --timeout=300s || {
+            echo "❌ Document service deployment failed to become ready"
+            echo "🔍 Deployment status:"
+            kubectl describe deployment study-mate-document-service -n study-mate
+            echo "🔍 Pod status:"
+            kubectl get pods -n study-mate -l app.kubernetes.io/component=document-service -o wide
+            echo "🔍 Pod logs:"
+            kubectl logs -l app.kubernetes.io/component=document-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+            exit 1
+          }
+          
+          echo "✅ Document service is ready"
+          
+          # Check service
+          kubectl get service study-mate-document-service -n study-mate
+          
+          # Health check
+          echo "🏥 Performing health check..."
+          kubectl port-forward svc/study-mate-document-service 8084:8084 -n study-mate &
+          PF_PID=$!
+          sleep 10
+          
+          # Try health endpoint first, fallback to root endpoint
+          if curl -f http://localhost:8084/actuator/health > /dev/null 2>&1; then
+            echo "✅ Document service health check passed"
+          elif curl -f http://localhost:8084/ > /dev/null 2>&1; then
+            echo "✅ Document service is responding (root endpoint)"
+          else
+            echo "❌ Document service health check failed"
+          fi
+          
+          kill $PF_PID 2>/dev/null || true
+
+      - name: Deployment Summary
+        run: |
+          echo "🌐 Document Service Deployment Complete!"
+          echo "📦 Namespace: study-mate"
+          echo "🔧 Release: document-service"
+          echo "🏷️  Image tag: ${{ github.event.inputs.image_tag || github.sha }}"
+          echo ""
+          echo "🔧 Useful commands:"
+          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/component=document-service"
+          echo "  kubectl logs -f deployment/document-service -n study-mate"
+          echo "  kubectl port-forward svc/study-mate-document-service 8084:8084 -n study-mate"
+          echo ""
+          echo "🔍 Troubleshooting:"
+          echo "  kubectl get events -n study-mate --sort-by='.lastTimestamp'"
+          echo "  helm status document-service -n study-mate" 

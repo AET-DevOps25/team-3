@@ -1,0 +1,73 @@
+# Default values for client
+replicaCount: 1
+
+image:
+  repository: ghcr.io/aet-devops25/team-3/client
+  tag: "k8s-latest"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Environment variables
+env:
+  - name: VITE_API_BASE_URL
+    value: "{{ .Values.apiBaseUrl }}"
+
+# API Base URL configuration
+apiBaseUrl: "https://study-mate.student.k8s.aet.cit.tum.de"
+
+# Note: Ingress is handled by the separate ingress chart
+# This chart only deploys the client service
+
+# Health check configuration
+livenessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: 80
+  initialDelaySeconds: 10
+  periodSeconds: 5 

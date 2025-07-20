@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "studymate.fullname" . }}-genai
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+    app.kubernetes.io/component: genai
+spec:
+  replicas: {{ .Values.genaiBackend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "studymate.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: genai
+  template:
+    metadata:
+      labels:
+        {{- include "studymate.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: genai
+    spec:
+      containers:
+        - name: genai-backend
+          image: "{{ .Values.genaiBackend.image.repository }}:{{ .Values.genaiBackend.image.tag }}"
+          imagePullPolicy: {{ .Values.genaiBackend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.genaiBackend.service.targetPort }}
+              protocol: TCP
+          env:
+            {{- toYaml .Values.genaiBackend.env | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 1200  # 20 minutes
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 1200  # 20 minutes
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 10
+          resources:
+            limits:
+              cpu: 500m
+              memory: 1Gi
+            requests:
+              cpu: 100m
+              memory: 256Mi 

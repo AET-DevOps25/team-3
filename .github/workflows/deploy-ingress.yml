@@ -1,0 +1,119 @@
+name: Deploy Ingress
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/helm-charts/ingress/**'
+      - '.github/workflows/deploy-ingress.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'infra/helm-charts/ingress/**'
+      - '.github/workflows/deploy-ingress.yml'
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domain name for ingress'
+        required: true
+        default: 'study-mate.student.k8s.aet.cit.tum.de'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Kubernetes tools
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        mkdir -p $HOME/.kube
+        cat > $HOME/.kube/config << 'EOF'
+        apiVersion: v1
+        kind: Config
+        clusters:
+        - name: "student"
+          cluster:
+            server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+        
+        users:
+        - name: "student"
+          user:
+            token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
+        
+        contexts:
+        - name: "student"
+          context:
+            user: "student"
+            cluster: "student"
+        
+        current-context: "student"
+        EOF
+        chmod 600 $HOME/.kube/config
+
+    - name: Verify namespace exists
+      run: |
+        echo "🔍 Verifying namespace exists..."
+        if ! kubectl get namespace study-mate > /dev/null 2>&1; then
+          echo "❌ Namespace 'study-mate' does not exist!"
+          echo "Please create the namespace manually before running this workflow:"
+          echo "kubectl create namespace study-mate"
+          exit 1
+        fi
+        echo "✅ Namespace 'study-mate' exists"
+
+    - name: Deploy Ingress
+      run: |
+        echo "🚀 Deploying Ingress with API routes..."
+        kubectl apply -f client-ingress.yaml
+        
+        echo "✅ Ingress deployed successfully"
+
+    - name: Verify deployment
+      run: |
+        echo "Waiting for ingress to be ready..."
+        
+        # Wait for ingress to have load balancer IPs (this is how we know it's ready)
+        echo "Checking for load balancer IPs..."
+        timeout=300
+        elapsed=0
+        while [ $elapsed -lt $timeout ]; do
+          if kubectl get ingress study-mate-client-ingress -n study-mate -o jsonpath='{.status.loadBalancer.ingress[*].ip}' | grep -q .; then
+            echo "✅ Ingress has load balancer IPs assigned"
+            break
+          fi
+          echo "⏳ Waiting for ingress to get load balancer IPs... ($elapsed/$timeout seconds)"
+          sleep 10
+          elapsed=$((elapsed + 10))
+        done
+        
+        if [ $elapsed -ge $timeout ]; then
+          echo "❌ Timeout waiting for ingress to be ready"
+          kubectl describe ingress study-mate-client-ingress -n study-mate
+          exit 1
+        fi
+        
+        echo "Ingress deployment successful!"
+        kubectl get ingress -n study-mate
+        echo ""
+        echo "🔍 Checking ingress configuration:"
+        kubectl describe ingress study-mate-client-ingress -n study-mate
+        
+        echo ""
+        echo "🌐 Application should be accessible at:"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de"
+        echo ""
+        echo "🔗 API endpoints:"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de/api/auth/*"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de/api/documents/*"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de/api/genai/*" 
