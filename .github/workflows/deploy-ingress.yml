@@ -1,0 +1,89 @@
+name: Deploy Ingress
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/helm-charts/ingress/**'
+      - '.github/workflows/deploy-ingress.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'infra/helm-charts/ingress/**'
+      - '.github/workflows/deploy-ingress.yml'
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Domain name for ingress'
+        required: true
+        default: 'study-mate.student.k8s.aet.cit.tum.de'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Kubernetes tools
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        mkdir -p $HOME/.kube
+        cat > $HOME/.kube/config << 'EOF'
+        apiVersion: v1
+        kind: Config
+        clusters:
+        - name: "student"
+          cluster:
+            server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+        
+        users:
+        - name: "student"
+          user:
+            token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
+        
+        contexts:
+        - name: "student"
+          context:
+            user: "student"
+            cluster: "student"
+        
+        current-context: "student"
+        EOF
+        chmod 600 $HOME/.kube/config
+
+    - name: Verify namespace exists
+      run: |
+        echo "🔍 Verifying namespace exists..."
+        if ! kubectl get namespace study-mate > /dev/null 2>&1; then
+          echo "❌ Namespace 'study-mate' does not exist!"
+          echo "Please create the namespace manually before running this workflow:"
+          echo "kubectl create namespace study-mate"
+          exit 1
+        fi
+        echo "✅ Namespace 'study-mate' exists"
+
+    - name: Deploy Ingress
+      run: |
+        helm upgrade --install ingress ./infra/helm-charts/ingress \
+          --namespace study-mate \
+          --wait --timeout=5m
+
+    - name: Verify deployment
+      run: |
+        echo "Waiting for ingress to be ready..."
+        kubectl wait --for=condition=ready ingress/study-mate \
+          --namespace study-mate \
+          --timeout=300s
+        
+        echo "Ingress deployment successful!"
+        kubectl get ingress -n study-mate 

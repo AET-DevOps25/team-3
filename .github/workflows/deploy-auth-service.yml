@@ -1,0 +1,196 @@
+name: Deploy Auth Service
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/auth-service/**'
+      - 'infra/helm-charts/auth-service/**'
+      - '.github/workflows/deploy-auth-service.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'server/auth-service/**'
+      - 'infra/helm-charts/auth-service/**'
+      - '.github/workflows/deploy-auth-service.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'latest'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-version: '8.5'
+
+      - name: Build Auth Service
+        run: |
+          cd server/auth-service
+          ./gradlew build -x test
+          echo "✅ Auth service built successfully"
+
+      - name: Build Docker Image
+        run: |
+          cd server/auth-service
+          docker build -t ghcr.io/aet-devops25/team-3/auth-service:${{ github.event.inputs.image_tag || github.sha }} .
+          docker build -t ghcr.io/aet-devops25/team-3/auth-service:latest .
+          echo "✅ Docker image built successfully"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker Image
+        run: |
+          cd server/auth-service
+          docker push ghcr.io/aet-devops25/team-3/auth-service:${{ github.event.inputs.image_tag || github.sha }}
+          docker push ghcr.io/aet-devops25/team-3/auth-service:latest
+          echo "✅ Docker image pushed successfully"
+
+      - name: Setup Kubernetes tools
+        run: |
+          echo "🔧 Setting up Kubernetes tools..."
+          
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          echo "✅ Kubernetes tools installed"
+          kubectl version --client
+          helm version
+
+      - name: Configure kubectl
+        run: |
+          echo "🔧 Configuring kubectl..."
+          
+          # Set up kubectl configuration
+          mkdir -p $HOME/.kube
+          cat > $HOME/.kube/config << 'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: "student"
+            cluster:
+              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+          
+          users:
+          - name: "student"
+            user:
+              token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
+          
+          contexts:
+          - name: "student"
+            context:
+              user: "student"
+              cluster: "student"
+          
+          current-context: "student"
+          EOF
+          chmod 600 $HOME/.kube/config
+          
+          echo "✅ Kubectl configured"
+          
+          # Test connection
+          echo "🔍 Testing cluster connection..."
+          kubectl cluster-info || {
+            echo "❌ Failed to connect to cluster"
+            exit 1
+          }
+          echo "✅ Cluster connection successful"
+
+      - name: Deploy Auth Service
+        run: |
+          echo "🚀 Deploying Auth Service..."
+          
+          # Ensure namespace exists
+          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
+          
+          # Deploy auth service with secrets
+          helm upgrade --install auth-service ./infra/helm-charts/auth-service -n study-mate \
+            --set authService.image.tag="${{ github.event.inputs.image_tag || github.sha }}" \
+            --set secrets.jwt.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
+            --wait --timeout=5m || {
+            echo "❌ Auth service deployment failed"
+            echo "🔍 Checking deployment status..."
+            helm status auth-service -n study-mate || echo "⚠️  Could not get release status"
+            echo "🔍 Checking pod status..."
+            kubectl get pods -n study-mate -l app.kubernetes.io/name=auth-service || echo "⚠️  Could not get pod status"
+            exit 1
+          }
+          
+          echo "✅ Auth service deployed successfully"
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verifying auth service deployment..."
+          
+          # Wait for pod to be ready
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=auth-service -n study-mate --timeout=300s || {
+            echo "❌ Auth service pod failed to become ready"
+            echo "🔍 Pod status:"
+            kubectl get pods -n study-mate -l app.kubernetes.io/name=auth-service -o wide
+            echo "🔍 Pod logs:"
+            kubectl logs -l app.kubernetes.io/name=auth-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+            exit 1
+          }
+          
+          echo "✅ Auth service is ready"
+          
+          # Check service
+          kubectl get service auth-service -n study-mate
+          
+          # Health check
+          echo "🏥 Performing health check..."
+          kubectl port-forward svc/auth-service 8086:8086 -n study-mate &
+          PF_PID=$!
+          sleep 10
+          
+          if curl -f http://localhost:8086/actuator/health > /dev/null 2>&1; then
+            echo "✅ Auth service health check passed"
+          else
+            echo "❌ Auth service health check failed"
+          fi
+          
+          kill $PF_PID 2>/dev/null || true
+
+      - name: Deployment Summary
+        run: |
+          echo "🌐 Auth Service Deployment Complete!"
+          echo "📦 Namespace: study-mate"
+          echo "🔧 Release: auth-service"
+          echo "🏷️  Image tag: ${{ github.event.inputs.image_tag || github.sha }}"
+          echo ""
+          echo "🔧 Useful commands:"
+          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/name=auth-service"
+          echo "  kubectl logs -f deployment/auth-service -n study-mate"
+          echo "  kubectl port-forward svc/auth-service 8086:8086 -n study-mate"
+          echo ""
+          echo "🔍 Troubleshooting:"
+          echo "  kubectl get events -n study-mate --sort-by='.lastTimestamp'"
+          echo "  helm status auth-service -n study-mate" 

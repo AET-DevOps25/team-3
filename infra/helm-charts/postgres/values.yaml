@@ -1,0 +1,40 @@
+# PostgreSQL configuration (disabled when using Bitnami)
+teamid: study-mate
+
+# Secrets configuration
+secrets:
+  postgres:
+    create: true
+    existingSecret: false
+    name: study-mate-postgres
+    data:
+      username: postgres
+      password: ""  # Set via --set-string secrets.postgres.data.password=<value>
+
+postgres:
+  enabled: false  # Disabled - using Bitnami PostgreSQL instead
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 5432
+    targetPort: 5432
+  replicaCount: 1
+  persistence:
+    size: 8Gi
+    storageClass: ""  # Use default storage class
+  env:
+    - name: POSTGRES_USER
+      valueFrom:
+        secretKeyRef:
+          name: study-mate-postgres
+          key: username
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: study-mate-postgres
+          key: password
+    - name: POSTGRES_DB
+      value: study-mate

@@ -37,8 +37,30 @@ jobs:
 
       - name: Setup Kubernetes tools
         run: |
-          mkdir -p ~/.kube
-          cat > ~/.kube/config << 'EOF'
+          echo "🔧 Setting up Kubernetes tools..."
+          
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          echo "✅ Kubernetes tools installed"
+          kubectl version --client
+          helm version
+
+      - name: Configure kubectl
+        run: |
+          echo "🔧 Configuring kubectl..."
+          
+          # Set up kubectl configuration
+          mkdir -p $HOME/.kube
+          cat > $HOME/.kube/config << 'EOF'
           apiVersion: v1
           kind: Config
           clusters:
@@ -49,7 +71,7 @@ jobs:
           users:
           - name: "student"
             user:
-              token: "kubeconfig-u-g7fbq4tzcsm6z76:btctl45d2sfw7fvdzplvdfzr6cnwbnnmzwtxpzjq4xjbnlp5bmrvzs"
+              token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
           
           contexts:
           - name: "student"
@@ -59,17 +81,19 @@ jobs:
           
           current-context: "student"
           EOF
-          chmod 600 ~/.kube/config
+          chmod 600 $HOME/.kube/config
+          
+          echo "✅ Kubectl configured"
+          
+          # Test connection
+          echo "🔍 Testing cluster connection..."
+          kubectl cluster-info || {
+            echo "❌ Failed to connect to cluster"
+            exit 1
+          }
+          echo "✅ Cluster connection successful"
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0'
 
-      - name: Install Helm
-        uses: azure/setup-helm@v3
-        with:
-          version: '3.12.0'
 
       - name: Verify Kubernetes connection
         run: |
