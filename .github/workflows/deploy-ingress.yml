@@ -82,9 +82,26 @@ jobs:
     - name: Verify deployment
       run: |
         echo "Waiting for ingress to be ready..."
-        kubectl wait --for=condition=ready ingress/study-mate-client-ingress \
-          --namespace study-mate \
-          --timeout=300s
+        
+        # Wait for ingress to have load balancer IPs (this is how we know it's ready)
+        echo "Checking for load balancer IPs..."
+        timeout=300
+        elapsed=0
+        while [ $elapsed -lt $timeout ]; do
+          if kubectl get ingress study-mate-client-ingress -n study-mate -o jsonpath='{.status.loadBalancer.ingress[*].ip}' | grep -q .; then
+            echo "✅ Ingress has load balancer IPs assigned"
+            break
+          fi
+          echo "⏳ Waiting for ingress to get load balancer IPs... ($elapsed/$timeout seconds)"
+          sleep 10
+          elapsed=$((elapsed + 10))
+        done
+        
+        if [ $elapsed -ge $timeout ]; then
+          echo "❌ Timeout waiting for ingress to be ready"
+          kubectl describe ingress study-mate-client-ingress -n study-mate
+          exit 1
+        fi
         
         echo "Ingress deployment successful!"
         kubectl get ingress -n study-mate

@@ -138,19 +138,19 @@ jobs:
           echo "🔍 Verifying auth service deployment..."
           
           # Wait for pod to be ready
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=auth-service -n study-mate --timeout=300s || {
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=auth-service -n study-mate --timeout=300s || {
             echo "❌ Auth service pod failed to become ready"
             echo "🔍 Pod status:"
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=auth-service -o wide
+            kubectl get pods -n study-mate -l app.kubernetes.io/component=auth-service -o wide
             echo "🔍 Pod logs:"
-            kubectl logs -l app.kubernetes.io/name=auth-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+            kubectl logs -l app.kubernetes.io/component=auth-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
             exit 1
           }
           
           echo "✅ Auth service is ready"
           
           # Check service
-          kubectl get service auth-service -n study-mate
+          kubectl get service study-mate-auth-service -n study-mate
           
           # Health check
           echo "🏥 Performing health check..."
@@ -174,7 +174,7 @@ jobs:
           echo "🏷️  Image tag: ${{ github.event.inputs.image_tag || github.sha }}"
           echo ""
           echo "🔧 Useful commands:"
-          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/name=auth-service"
+          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/component=auth-service"
           echo "  kubectl logs -f deployment/auth-service -n study-mate"
           echo "  kubectl port-forward svc/auth-service 8086:8086 -n study-mate"
           echo ""

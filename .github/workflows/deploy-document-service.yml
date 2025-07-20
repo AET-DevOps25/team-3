@@ -140,19 +140,19 @@ jobs:
           echo "🔍 Verifying document service deployment..."
           
           # Wait for pod to be ready
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=document-service -n study-mate --timeout=300s || {
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=document-service -n study-mate --timeout=300s || {
             echo "❌ Document service pod failed to become ready"
             echo "🔍 Pod status:"
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=document-service -o wide
+            kubectl get pods -n study-mate -l app.kubernetes.io/component=document-service -o wide
             echo "🔍 Pod logs:"
-            kubectl logs -l app.kubernetes.io/name=document-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+            kubectl logs -l app.kubernetes.io/component=document-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
             exit 1
           }
           
           echo "✅ Document service is ready"
           
           # Check service
-          kubectl get service document-service -n study-mate
+          kubectl get service study-mate-document-service -n study-mate
           
           # Health check
           echo "🏥 Performing health check..."
@@ -176,7 +176,7 @@ jobs:
           echo "🏷️  Image tag: ${{ github.event.inputs.image_tag || github.sha }}"
           echo ""
           echo "🔧 Useful commands:"
-          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/name=document-service"
+          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/component=document-service"
           echo "  kubectl logs -f deployment/document-service -n study-mate"
           echo "  kubectl port-forward svc/document-service 8084:8084 -n study-mate"
           echo ""

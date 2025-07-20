@@ -140,23 +140,23 @@ jobs:
           echo "🔍 Verifying GenAI service deployment..."
           
           # Wait for pod to be ready
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=genai-service -n study-mate --timeout=300s || {
-            echo "❌ GenAI service pod failed to become ready"
-            echo "🔍 Pod status:"
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=genai-service -o wide
-            echo "🔍 Pod logs:"
-            kubectl logs -l app.kubernetes.io/name=genai-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+            kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=genai-service -n study-mate --timeout=300s || {
+    echo "❌ GenAI service pod failed to become ready"
+    echo "🔍 Pod status:"
+    kubectl get pods -n study-mate -l app.kubernetes.io/component=genai-service -o wide
+    echo "🔍 Pod logs:"
+    kubectl logs -l app.kubernetes.io/component=genai-service -n study-mate --tail=50 || echo "⚠️  Could not get logs"
             exit 1
           }
           
           echo "✅ GenAI service is ready"
           
           # Check service
-          kubectl get service genai-service -n study-mate
+          kubectl get service study-mate-genai-service -n study-mate
           
           # Health check
           echo "🏥 Performing health check..."
-          kubectl port-forward svc/genai-service 8085:8085 -n study-mate &
+          kubectl port-forward svc/study-mate-genai-service 8085:8085 -n study-mate &
           PF_PID=$!
           sleep 10
           
@@ -176,9 +176,9 @@ jobs:
           echo "🏷️  Image tag: ${{ github.event.inputs.image_tag || github.sha }}"
           echo ""
           echo "🔧 Useful commands:"
-          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/name=genai-service"
-          echo "  kubectl logs -f deployment/genai-service -n study-mate"
-          echo "  kubectl port-forward svc/genai-service 8085:8085 -n study-mate"
+          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/component=genai-service"
+          echo "  kubectl logs -f deployment/study-mate-genai-service -n study-mate"
+          echo "  kubectl port-forward svc/study-mate-genai-service 8085:8085 -n study-mate"
           echo ""
           echo "🔍 Troubleshooting:"
           echo "  kubectl get events -n study-mate --sort-by='.lastTimestamp'"

@@ -161,9 +161,11 @@ jobs:
           kubectl get ingress -n ${{ env.HELM_NAMESPACE }} || echo "⚠️  Could not retrieve ingress (permission issue)"
           
           echo "🏥 Waiting for pods to be ready..."
-          kubectl wait --for=condition=ready pod -l app=study-mate-postgres -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify PostgreSQL pod readiness"
-          kubectl wait --for=condition=ready pod -l app=study-mate-client -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify client pod readiness"
-          kubectl wait --for=condition=ready pod -l app=study-mate-auth-service -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify auth service pod readiness"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=postgres -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify PostgreSQL pod readiness"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=client -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify client pod readiness"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=auth-service -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify auth service pod readiness"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=document-service -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify document service pod readiness"
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=genai-service -n ${{ env.HELM_NAMESPACE }} --timeout=300s || echo "⚠️  Could not verify genai service pod readiness"
           
           # Check if ingress failed and provide alternative access method
           if ! kubectl get ingress -n ${{ env.HELM_NAMESPACE }} 2>/dev/null | grep -q study-mate-ingress; then
@@ -183,4 +185,6 @@ jobs:
           echo "kubectl get pods -n ${{ env.HELM_NAMESPACE }}"
           echo "kubectl logs -f deployment/study-mate-client -n ${{ env.HELM_NAMESPACE }}"
           echo "kubectl logs -f deployment/study-mate-auth-service -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/study-mate-document-service -n ${{ env.HELM_NAMESPACE }}"
+          echo "kubectl logs -f deployment/study-mate-genai-service -n ${{ env.HELM_NAMESPACE }}"
           echo "kubectl port-forward svc/study-mate-client 8080:80 -n ${{ env.HELM_NAMESPACE }}" 
