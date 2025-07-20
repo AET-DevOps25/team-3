@@ -1,0 +1,43 @@
+# Auth Service - Authentication microservice
+teamid: study-mate
+
+# Secrets configuration
+secrets:
+  jwt:
+    create: true
+    existingSecret: false
+    name: auth-secret
+    data:
+      jwtSecret: ""  # Set via --set-string secrets.jwt.data.jwtSecret=<value>
+
+authService:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/auth-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8086  # Changed from 8083 to avoid conflict with weaviate
+    targetPort: 8083
+  replicaCount: 1
+  env:
+    - name: SPRING_PROFILES_ACTIVE
+      value: docker
+    - name: SPRING_DATASOURCE_URL
+      value: "jdbc:postgresql://study-mate-postgres:5432/auth_db"
+    - name: SPRING_DATASOURCE_USERNAME
+      value: "postgres"
+    - name: SPRING_DATASOURCE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: study-mate-postgres
+          key: password
+    - name: JWT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: auth-secret
+          key: jwt-secret
+    - name: JWT_EXPIRATION
+      value: "86400000"
+    - name: JWT_REFRESH_EXPIRATION
+      value: "604800000"
