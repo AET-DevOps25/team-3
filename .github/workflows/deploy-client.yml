@@ -157,7 +157,7 @@ jobs:
           kubectl get service client -n study-mate
           
           # Check ingress
-          kubectl get ingress client -n study-mate
+          kubectl get ingress study-mate-client-ingress -n study-mate
           
           # Health check
           echo "🏥 Performing health check..."

@@ -137,9 +137,16 @@ jobs:
         run: |
           echo "🔍 Verifying auth service deployment..."
           
-          # Wait for pod to be ready
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/component=auth-service -n study-mate --timeout=300s || {
-            echo "❌ Auth service pod failed to become ready"
+          # Wait a bit for old pods to terminate after Helm upgrade
+          echo "⏳ Waiting for deployment to stabilize..."
+          sleep 30
+          
+          # Wait for deployment to be ready (more reliable than waiting for specific pods)
+          echo "🔍 Waiting for deployment to be ready..."
+          kubectl rollout status deployment/study-mate-auth-service -n study-mate --timeout=300s || {
+            echo "❌ Auth service deployment failed to become ready"
+            echo "🔍 Deployment status:"
+            kubectl describe deployment study-mate-auth-service -n study-mate
             echo "🔍 Pod status:"
             kubectl get pods -n study-mate -l app.kubernetes.io/component=auth-service -o wide
             echo "🔍 Pod logs:"
@@ -154,7 +161,7 @@ jobs:
           
           # Health check
           echo "🏥 Performing health check..."
-          kubectl port-forward svc/auth-service 8086:8086 -n study-mate &
+          kubectl port-forward svc/study-mate-auth-service 8086:8086 -n study-mate &
           PF_PID=$!
           sleep 10
           
@@ -176,7 +183,7 @@ jobs:
           echo "🔧 Useful commands:"
           echo "  kubectl get pods -n study-mate -l app.kubernetes.io/component=auth-service"
           echo "  kubectl logs -f deployment/auth-service -n study-mate"
-          echo "  kubectl port-forward svc/auth-service 8086:8086 -n study-mate"
+          echo "  kubectl port-forward svc/study-mate-auth-service 8086:8086 -n study-mate"
           echo ""
           echo "🔍 Troubleshooting:"
           echo "  kubectl get events -n study-mate --sort-by='.lastTimestamp'"
