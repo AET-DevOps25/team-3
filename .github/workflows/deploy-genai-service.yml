@@ -86,32 +86,14 @@ jobs:
           helm version
 
       - name: Configure kubectl
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
           echo "🔧 Configuring kubectl..."
           
-          # Set up kubectl configuration
+          # Set up kubectl configuration from secret
           mkdir -p $HOME/.kube
-          cat > $HOME/.kube/config << 'EOF'
-          apiVersion: v1
-          kind: Config
-          clusters:
-          - name: "student"
-            cluster:
-              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
-          
-          users:
-          - name: "student"
-            user:
-              token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
-          
-          contexts:
-          - name: "student"
-            context:
-              user: "student"
-              cluster: "student"
-          
-          current-context: "student"
-          EOF
+          echo "$KUBE_CONFIG" > $HOME/.kube/config
           chmod 600 $HOME/.kube/config
           
           echo "✅ Kubectl configured"
