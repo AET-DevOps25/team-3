@@ -132,8 +132,8 @@ jobs:
           helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
             --namespace ${{ env.HELM_NAMESPACE }} \
             --set genaiBackend.image.tag=${{ env.IMAGE_TAG }} \
-            --set secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPENWEBUI_API_KEY_CHAT }}" \
-            --set secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPENWEBUI_API_KEY_GEN }}" \
+            --set secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" \
+            --set secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" \
             --set secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
             --wait --timeout=5m
           

@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'client-ingress.yaml'
+      - 'infra/helm-charts/ingress/**'
       - '.github/workflows/deploy-ingress.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'client-ingress.yaml'
+      - 'infra/helm-charts/ingress/**'
       - '.github/workflows/deploy-ingress.yml'
   workflow_dispatch:
     inputs:
