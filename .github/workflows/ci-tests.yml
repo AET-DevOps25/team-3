@@ -251,6 +251,11 @@ jobs:
     - name: Start services
       run: |
         # Start GenAI service
+        if [ ! -d "genAi" ]; then
+          echo "Error: genAi directory not found for integration tests"
+          ls -la
+          exit 1
+        fi
         cd genAi
         pip install -r requirements.txt
         nohup python -m uvicorn main:app --host 0.0.0.0 --port 8081 &
@@ -326,6 +331,11 @@ jobs:
         
     - name: Install Python dependencies
       run: |
+        if [ ! -d "genAi" ]; then
+          echo "Error: genAi directory not found"
+          ls -la
+          exit 1
+        fi
         cd genAi
         pip install -r requirements.txt
         pip install -r requirements-test.txt
@@ -337,6 +347,11 @@ jobs:
         WEAVIATE_HOST: localhost
         WEAVIATE_PORT: 8080
       run: |
+        if [ ! -d "genAi" ]; then
+          echo "Error: genAi directory not found"
+          ls -la
+          exit 1
+        fi
         cd genAi
         nohup python -m uvicorn main:app --host 0.0.0.0 --port 8081 &
         echo $! > genai-service.pid
@@ -346,6 +361,11 @@ jobs:
         
     - name: Test AI functionality
       run: |
+        if [ ! -d "genAi" ]; then
+          echo "Error: genAi directory not found"
+          ls -la
+          exit 1
+        fi
         cd genAi
         
         # Test core AI features
@@ -476,10 +496,12 @@ jobs:
         
     - name: Scan for secrets
       uses: trufflesecurity/trufflehog@main
+      if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.event.before != github.sha)
       with:
         path: ./
-        base: main
-        head: HEAD
+        base: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}
+        head: ${{ github.sha }}
+        extra_args: --debug --only-verified
         
   # Job 9: Performance Tests
   performance-tests:
