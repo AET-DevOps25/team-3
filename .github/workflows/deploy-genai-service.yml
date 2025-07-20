@@ -159,13 +159,13 @@ jobs:
           kubectl port-forward svc/study-mate-genai-service 8085:8085 -n study-mate &
           PF_PID=$!
           sleep 10
-          
+
           if curl -f http://localhost:8085/actuator/health > /dev/null 2>&1; then
             echo "✅ GenAI service health check passed"
           else
             echo "❌ GenAI service health check failed"
           fi
-          
+
           kill $PF_PID 2>/dev/null || true
 
       - name: Deployment Summary
