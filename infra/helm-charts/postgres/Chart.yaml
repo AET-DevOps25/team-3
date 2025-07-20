@@ -1,0 +1,16 @@
+apiVersion: v2
+name: postgres
+description: A Helm chart for StudyMate PostgreSQL Database
+type: application
+version: 0.1.0
+appVersion: "15"
+keywords:
+  - postgres
+  - database
+  - studymate
+home: https://github.com/aet-devops25/team-3
+sources:
+  - https://github.com/aet-devops25/team-3
+maintainers:
+  - name: StudyMate Team
+    email: studymate@example.com 
