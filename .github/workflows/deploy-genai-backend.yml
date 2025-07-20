@@ -4,13 +4,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'genAi/**'
+      - 'genai/**'
       - 'infra/helm-charts/genai-backend/**'
       - '.github/workflows/deploy-genai-backend.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'genAi/**'
+      - 'genai/**'
       - 'infra/helm-charts/genai-backend/**'
       - '.github/workflows/deploy-genai-backend.yml'
   workflow_dispatch:
@@ -37,19 +37,19 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('genAi/requirements.txt') }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('genai/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
         run: |
-          cd genAi
+          cd genai
           pip install -r requirements.txt
           echo "✅ Dependencies installed successfully"
 
       - name: Build Docker Image
         run: |
-          cd genAi
+          cd genai
           docker build -t ghcr.io/aet-devops25/team-3/genai:${{ github.event.inputs.image_tag || github.sha }} .
           docker build -t ghcr.io/aet-devops25/team-3/genai:latest .
           echo "✅ Docker image built successfully"
@@ -63,7 +63,7 @@ jobs:
 
       - name: Push Docker Image
         run: |
-          cd genAi
+          cd genai
           docker push ghcr.io/aet-devops25/team-3/genai:${{ github.event.inputs.image_tag || github.sha }}
           docker push ghcr.io/aet-devops25/team-3/genai:latest
           echo "✅ Docker image pushed successfully"

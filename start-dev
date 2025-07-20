@@ -25,4 +25,4 @@ while getopts "rdb" opt; do
 done
 
 # Run docker compose with optional flags
-docker compose -f docker-compose.dev-no-traefik.yml up $BUILD $RECREATE $DETACH
+docker compose -f docker-compose.dev.yml --env-file .env.dev up $BUILD $RECREATE $DETACH
