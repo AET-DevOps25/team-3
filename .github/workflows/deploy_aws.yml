@@ -7,6 +7,90 @@ on:
 
 
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      COMMIT_SHA: ${{ github.sha }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+    # Build and Push Microservices (using multi-stage Docker builds)
+      - name: Build and push auth-service
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ./server/auth-service
+          docker push ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA}
+
+      - name: Build and push document-service
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ./server/document-service
+          docker push ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA}
+
+      - name: Build and push genai-service
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ./server/genai-service
+          docker push ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA}
+
+      - name: Build and push eureka-server
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ./server/eureka-server
+          docker push ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA}
+
+      - name: Build and push client for EC2
+        run: |
+          docker build --platform linux/amd64 --build-arg VITE_API_BASE_URL=https://studymate-tum.xyz -t ghcr.io/aet-devops25/team-3/client:ec2-${COMMIT_SHA} ./client
+          docker push ghcr.io/aet-devops25/team-3/client:ec2-${COMMIT_SHA}
+
+      - name: Build and push genai
+        run: |
+          docker build --platform linux/amd64 -t ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ./genAi
+          docker push ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA}
+
+      # Tag and push as latest
+      - name: Tag and push auth-service as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/auth-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/auth-service:latest
+          docker push ghcr.io/aet-devops25/team-3/auth-service:latest
+
+      - name: Tag and push document-service as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/document-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/document-service:latest
+          docker push ghcr.io/aet-devops25/team-3/document-service:latest
+
+      - name: Tag and push genai-service as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/genai-service:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai-service:latest
+          docker push ghcr.io/aet-devops25/team-3/genai-service:latest
+
+      - name: Tag and push eureka-server as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/eureka-server:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/eureka-server:latest
+          docker push ghcr.io/aet-devops25/team-3/eureka-server:latest
+
+      - name: Tag and push client as ec2-latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/client:ec2-${COMMIT_SHA} ghcr.io/aet-devops25/team-3/client:ec2-latest
+          docker push ghcr.io/aet-devops25/team-3/client:ec2-latest
+
+      - name: Tag and push genai as latest
+        run: |
+          docker tag ghcr.io/aet-devops25/team-3/genai:${COMMIT_SHA} ghcr.io/aet-devops25/team-3/genai:latest
+          docker push ghcr.io/aet-devops25/team-3/genai:latest
+
   deploy-aws:
     runs-on: ubuntu-latest
     env:
