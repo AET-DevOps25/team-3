@@ -1,10 +1,12 @@
 -- Create separate databases for each microservice
 CREATE DATABASE auth_db;
 CREATE DATABASE document_db;
+CREATE DATABASE genai_db;
 
 -- Grant permissions
 GRANT ALL PRIVILEGES ON DATABASE auth_db TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE document_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE genai_db TO postgres;
 
 -- Connect to auth_db and create users table
 \c auth_db;
