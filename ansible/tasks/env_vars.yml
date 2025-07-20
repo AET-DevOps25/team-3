@@ -6,3 +6,4 @@
     langsmith_api_key: "{{ lookup('env', 'LANGSMITH_API_KEY') }}"
     grafana_admin_username: "{{ lookup('env', 'GRAFANA_ADMIN_USERNAME') }}"
     grafana_admin_password: "{{ lookup('env', 'GRAFANA_ADMIN_PASSWORD') }}"
+    postgres_password: "{{ lookup('env', 'POSTGRES_PASSWORD') }}"

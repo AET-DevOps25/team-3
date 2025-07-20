@@ -44,8 +44,8 @@ services:
       - "traefik.http.services.auth.loadbalancer.server.port=8083"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
-      - SPRING_DATASOURCE_USERNAME=postgres # TODO: replace with env variable
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD="{{ postgres_password }}"
     depends_on:
       - postgres
 
@@ -64,7 +64,7 @@ services:
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/document_db
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_PASSWORD="{{ postgres_password }}"
     depends_on:
       - postgres
 
@@ -128,7 +128,7 @@ services:
       - "5432:5432"
     environment: # TODO: replace values with an env variables & secrets
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "{{ postgres_password }}"
       POSTGRES_DB: postgres
       POSTGRES_MULTIPLE_DATABASES: auth_db,document_db
     volumes:
