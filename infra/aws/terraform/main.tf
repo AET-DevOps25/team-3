@@ -22,10 +22,16 @@ provider "aws" {
 }
 
 resource "aws_instance" "team-3-server" {
-  ami           = "ami-084568db4383264d4"
-  instance_type = "t2.micro"
+  ami           = "ami-020cba7c55df1f615"
+  instance_type = "t3.medium"
   key_name      = "vockey"
   vpc_security_group_ids = [aws_security_group.team_3_sg.id]
+
+  root_block_device {
+    volume_size = 50
+    volume_type = "gp3"
+    delete_on_termination = true
+  }
 
   tags = {
     Name = "Team-3 Server"
