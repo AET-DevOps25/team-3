@@ -96,7 +96,6 @@ This workflow deploys the application to the **Kubernetes cluster** on **Rancher
 
 It pulls the latest GHCR images and upgrades the cluster using Helm charts defined under `infra/helm/`.
 
----
 
 ## 📂 Repository Structure
 
@@ -120,7 +119,6 @@ It pulls the latest GHCR images and upgrades the cluster using Helm charts defin
 .
 ```
 
----
 
 ## 🧪 Quick Start (Local Dev)
 
@@ -147,21 +145,6 @@ It pulls the latest GHCR images and upgrades the cluster using Helm charts defin
    ./stop-dev
    ```
 
----
-
-## 📚 Documentation Index
-
-| Doc | Description |
-|-----|-------------|
-| [DEV_SETUP.md](DEV_SETUP.md) | Local development environment |
-| [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) | Full deployment instructions |
-| [MICROSERVICES_README.md](MICROSERVICES_README.md) | Overview of server-side microservices |
-| [QUICK_SECRETS_SETUP.md](QUICK_SECRETS_SETUP.md) | Secrets configuration |
-| [ProblemStatement.md](ProblemStatement.md) | Project goal and user story |
-| [product_backlog.md](product_backlog.md) | Task tracking and planning |
-| [system_overview/](system_overview/) | System diagrams |
-
----
 
 ## 👥 Contributors
 
@@ -170,7 +153,6 @@ It pulls the latest GHCR images and upgrades the cluster using Helm charts defin
 - [@waleedbaroudi](https://github.com/waleedbaroudi) – GenAI, Monitoring, AWS Deployment
 
 
----
 
 ## 📄 License
 
