@@ -65,6 +65,19 @@ services:
     networks:
       - dev-network
 
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "8888:80"
+    volumes:
+      - ./nginx-dev-gateway.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - auth-service
+      - document-service
+      - genai-service
+    networks:
+      - dev-network
+
   postgres:
     image: postgres:15
     ports:
