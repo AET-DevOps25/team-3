@@ -23,7 +23,7 @@ postgres:
     targetPort: 5432
   replicaCount: 1
   persistence:
-    size: 8Gi
+    size: 50Gi
     storageClass: ""  # Use default storage class
   env:
     - name: POSTGRES_USER
