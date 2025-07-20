@@ -84,7 +84,7 @@ export const mockDocuments = [
 
 export const handlers = [
   // Auth endpoints
-  http.post('http://localhost:3000/api/auth/login', async ({ request }) => {
+  http.post('http://localhost:8099/api/auth/login', async ({ request }) => {
     const body = await request.json() as { username: string; password: string }
     
     if (body.username === 'testuser' && body.password === 'password') {
@@ -102,7 +102,7 @@ export const handlers = [
     )
   }),
 
-  http.post('http://localhost:3000/api/auth/register', async ({ request }) => {
+  http.post('http://localhost:8099/api/auth/register', async ({ request }) => {
     const body = await request.json() as { username: string; email: string; password: string }
     
     if (body.username === 'existinguser') {
@@ -124,11 +124,11 @@ export const handlers = [
     })
   }),
 
-  http.post('http://localhost:3000/api/auth/logout', () => {
+  http.post('http://localhost:8099/api/auth/logout', () => {
     return HttpResponse.json({ message: 'Logged out successfully' })
   }),
 
-  http.get('http://localhost:3000/api/auth/me', ({ request }) => {
+  http.get('http://localhost:8099/api/auth/me', ({ request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -138,7 +138,7 @@ export const handlers = [
   }),
 
   // Document endpoints
-  http.get('http://localhost:3000/api/documents', ({ request }) => {
+  http.get('http://localhost:8099/api/documents', ({ request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -147,7 +147,7 @@ export const handlers = [
     return HttpResponse.json({ documents: mockDocuments })
   }),
 
-  http.post('http://localhost:3000/api/documents/upload', async ({ request }) => {
+  http.post('http://localhost:8099/api/documents/upload', async ({ request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -201,7 +201,7 @@ export const handlers = [
     }
   }),
 
-  http.get('http://localhost:3000/api/documents/:id/content', ({ params, request }) => {
+  http.get('http://localhost:8099/api/documents/:id/content', ({ params, request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -225,7 +225,7 @@ export const handlers = [
     })
   }),
 
-  http.delete('http://localhost:3000/api/documents/:id', ({ params, request }) => {
+  http.delete('http://localhost:8099/api/documents/:id', ({ params, request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -245,7 +245,7 @@ export const handlers = [
   }),
 
   // GenAI endpoints
-  http.post('http://localhost:3000/api/genai/chat/sessions', async ({ request }) => {
+  http.post('http://localhost:8099/api/genai/chat/sessions', async ({ request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -260,7 +260,7 @@ export const handlers = [
     })
   }),
 
-  http.post('http://localhost:3000/api/genai/chat/sessions/:sessionId/messages', async ({ request, params }) => {
+  http.post('http://localhost:8099/api/genai/chat/sessions/:sessionId/messages', async ({ request, params }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -283,7 +283,7 @@ export const handlers = [
     })
   }),
 
-  http.post('http://localhost:3000/api/genai/summary', async ({ request }) => {
+  http.post('http://localhost:8099/api/genai/summary', async ({ request }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -296,7 +296,7 @@ export const handlers = [
     })
   }),
 
-  http.get('http://localhost:3000/api/genai/quiz/documents/:documentId', async ({ request, params }) => {
+  http.get('http://localhost:8099/api/genai/quiz/documents/:documentId', async ({ request, params }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
@@ -325,7 +325,7 @@ export const handlers = [
     })
   }),
 
-  http.get('http://localhost:3000/api/genai/flashcards/documents/:documentId', async ({ request, params }) => {
+  http.get('http://localhost:8099/api/genai/flashcards/documents/:documentId', async ({ request, params }) => {
     const auth = checkAuth(request)
     if (!auth.authorized) {
       return auth.error
