@@ -33,7 +33,7 @@ on:
     paths:
       - 'server/**'          # Any server changes
       - 'client/**'          # Any client changes
-      - 'genAi/**'           # Any GenAI changes
+      - 'genai/**'           # Any GenAI changes
       - 'infra/helm/**'      # Any Helm chart changes
       - '.github/workflows/**' # Workflow changes
 ```
@@ -46,7 +46,7 @@ on:
     paths:
       - 'server/**'          # Server changes in PR
       - 'client/**'          # Client changes in PR
-      - 'genAi/**'           # GenAI changes in PR
+      - 'genai/**'           # GenAI changes in PR
       - 'infra/helm/**'      # Helm chart changes in PR
       - '.github/workflows/**' # Workflow changes in PR
 ```

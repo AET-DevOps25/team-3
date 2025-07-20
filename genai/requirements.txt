@@ -12,7 +12,7 @@ langchain-community
 langchain-text-splitters
 pymupdf # for the PDF loader
 langchain_huggingface
-sentence-transformers
+sentence-transformers[cpu-only]
 requests
 langchain-core
 prometheus-fastapi-instrumentator

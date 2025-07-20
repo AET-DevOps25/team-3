@@ -21,6 +21,8 @@ services:
     restart: unless-stopped
     networks:
       - proxy
+    environment:
+      - VITE_API_BASE_URL=https://studymate-tum.xyz
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.client.rule=Host(`studymate-tum.xyz`)"
@@ -43,7 +45,7 @@ services:
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/auth_db
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_PASSWORD="{{ postgres_password }}"
     depends_on:
       - postgres
 
@@ -62,7 +64,7 @@ services:
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/document_db
       - SPRING_DATASOURCE_USERNAME=postgres
-      - SPRING_DATASOURCE_PASSWORD=postgres
+      - SPRING_DATASOURCE_PASSWORD="{{ postgres_password }}"
     depends_on:
       - postgres
 
@@ -102,7 +104,7 @@ services:
     restart: unless-stopped
     environment:
       - WEAVIATE_HOST=weaviate
-      - WEAVIATE_PORT=8083
+      - WEAVIATE_PORT=8090
       - OPEN_WEBUI_API_KEY_CHAT="{{ open_webui_api_key_chat }}"
       - OPEN_WEBUI_API_KEY_GEN="{{ open_webui_api_key_gen }}"
       - LANGSMITH_TRACING=true
@@ -126,7 +128,7 @@ services:
       - "5432:5432"
     environment: # TODO: replace values with an env variables & secrets
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: "{{ postgres_password }}"
       POSTGRES_DB: postgres
       POSTGRES_MULTIPLE_DATABASES: auth_db,document_db
     volumes:
@@ -140,12 +142,12 @@ services:
       - --host
       - 0.0.0.0
       - --port
-      - '8083'
+      - '8090'
       - --scheme
       - http
     image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
     ports: # TODO: remove?
-      - 8083:8083
+      - 8090:8090
       - 50051:50051
     volumes:
       - weaviate_data:/var/lib/weaviate

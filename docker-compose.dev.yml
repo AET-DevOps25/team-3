@@ -1,0 +1,142 @@
+services:
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    ports:
+      - "3000:80"
+    env_file: .env.dev
+    depends_on:
+      - auth-service
+    networks:
+      - dev-network
+
+  auth-service:
+    build:
+      context: ./server/auth-service
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    restart: unless-stopped
+    env_file: .env.dev
+    depends_on:
+      - postgres
+    networks:
+      - dev-network
+
+  document-service:
+    build:
+      context: ./server/document-service
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8084"
+    restart: unless-stopped
+    env_file: .env.dev
+    depends_on:
+      - postgres
+    networks:
+      - dev-network
+
+  genai-service:
+    build:
+      context: ./server/genai-service
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+    restart: unless-stopped
+    env_file: .env.dev
+    depends_on:
+      - genai
+    networks:
+      - dev-network
+
+  genai:
+    build:
+      context: ./genai
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    restart: unless-stopped
+    env_file: .env.dev
+    depends_on:
+      - weaviate
+    networks:
+      - dev-network
+
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "8888:80"
+    volumes:
+      - ./nginx-dev-gateway.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - auth-service
+      - document-service
+      - genai-service
+    networks:
+      - dev-network
+
+  postgres:
+    image: postgres:15
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    env_file: .env.dev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database_setup_microservices.sql:/docker-entrypoint-initdb.d/database_setup_microservices.sql
+    networks:
+      - dev-network
+
+  weaviate:
+    command:
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8090'
+      - --scheme
+      - http
+    image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
+    ports:
+      - "8090:8090"
+      - "50051:50051"
+    restart: unless-stopped
+    env_file: .env.dev
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - dev-network
+
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - dev-network
+
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    env_file: .env.dev
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - dev-network
+
+volumes:
+  pgdata:
+  weaviate_data:
+  grafana_data:
+
+networks:
+  dev-network:
