@@ -21,7 +21,7 @@ The system is composed of several modular components:
   - `genai-service`
   - `eureka-server`
   - and shared modules
-  - See [📄 MICROSERVICES_README.md](./server/MICROSERVICES_README.md) for more on each server-side service.
+  - See [📄 Microservices Architecture Migration](./server/MICROSERVICES_README.md) for more on each server-side service.
 - **GenAI**: A Generative AI Module with RAG capabilities
    - Read more in [🧠 GenAI & RAG Pipeline](./genai/README.md)
 - **Infrastructure**:
