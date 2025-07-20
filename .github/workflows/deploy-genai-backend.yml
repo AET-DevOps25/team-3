@@ -1,12 +1,11 @@
 name: Deploy GenAI Backend
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'genai/**'
-      - 'infra/helm-charts/genai-backend/**'
-      - '.github/workflows/deploy-genai-backend.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -23,17 +22,37 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for genai-backend changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Check if genai-backend files changed in the commit that triggered CI
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            if echo "$CHANGED_FILES" | grep -E "(^genai/|^infra/helm-charts/genai-backend/|^\.github/workflows/deploy-genai-backend\.yml)"; then
+              echo "genai_backend_changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "genai_backend_changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "genai_backend_changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Python
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
 
       - name: Cache pip dependencies
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
@@ -42,12 +61,14 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           cd genai
           pip install -r requirements.txt
           echo "✅ Dependencies installed successfully"
 
       - name: Build Docker Image
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           cd genai
           docker build -t ghcr.io/aet-devops25/team-3/genai:${{ github.event.inputs.image_tag || github.sha }} .
@@ -55,6 +76,7 @@ jobs:
           echo "✅ Docker image built successfully"
 
       - name: Login to GitHub Container Registry
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -62,6 +84,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Docker Image
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           cd genai
           docker push ghcr.io/aet-devops25/team-3/genai:${{ github.event.inputs.image_tag || github.sha }}
@@ -69,6 +92,7 @@ jobs:
           echo "✅ Docker image pushed successfully"
 
       - name: Setup Kubernetes tools
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           echo "🔧 Setting up Kubernetes tools..."
           
@@ -88,6 +112,7 @@ jobs:
           helm version
 
       - name: Configure kubectl
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           echo "🔧 Configuring kubectl..."
           
@@ -121,6 +146,7 @@ jobs:
 
 
       - name: Deploy Helm Chart
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         env:
           HELM_RELEASE_NAME: genai-backend
           CHART_PATH: ./infra/helm-charts/genai-backend
@@ -140,6 +166,7 @@ jobs:
           echo "✅ GenAI backend deployed successfully"
 
       - name: Verify Deployment
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           echo "🔍 Verifying GenAI backend deployment..."
           
@@ -173,6 +200,7 @@ jobs:
           kill $PF_PID 2>/dev/null || true
 
       - name: Deployment Summary
+        if: steps.changes.outputs.genai_backend_changed == 'true'
         run: |
           echo "🌐 GenAI Backend Deployment Complete!"
           echo "📦 Namespace: study-mate"

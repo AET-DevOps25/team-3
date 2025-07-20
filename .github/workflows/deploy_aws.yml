@@ -1,7 +1,10 @@
 name: Deploy to AWS
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
   workflow_dispatch:
 
@@ -9,27 +12,44 @@ on:
 jobs:
   deploy-aws:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     env:
       COMMIT_SHA: ${{ github.sha }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for aws changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # For AWS deployment, deploy on any change since it's a general deployment
+            echo "aws_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "aws_changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Set up SSH key
+        if: steps.changes.outputs.aws_changed == 'true'
         run: |
           echo "${{ secrets.LABUSER_SSH_BASE64 }}" | base64 -d > key.pem
           chmod 400 key.pem
 
       - name: Generate Ansible inventory
+        if: steps.changes.outputs.aws_changed == 'true'
         run: |
           echo "[ec2]" > inventory.ini
           echo "studymate-tum.xyz ansible_user=ubuntu ansible_ssh_private_key_file=key.pem ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> inventory.ini
 
       - name: Install Ansible
+        if: steps.changes.outputs.aws_changed == 'true'
         run: sudo apt-get update && sudo apt-get install -y ansible
 
       - name: Deploy with Ansible
+        if: steps.changes.outputs.aws_changed == 'true'
         env:
           IMAGE_TAG: ${{ env.COMMIT_SHA }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

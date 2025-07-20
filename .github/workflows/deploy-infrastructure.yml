@@ -1,12 +1,11 @@
 name: Deploy Infrastructure
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'infra/helm-charts/postgres/**'
-      - 'infra/helm-charts/weaviate/**'
-      - '.github/workflows/deploy-infrastructure.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -27,12 +26,31 @@ on:
 jobs:
   deploy-infrastructure:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for infrastructure changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Check if infrastructure files changed in the commit that triggered CI
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            if echo "$CHANGED_FILES" | grep -E "(^infra/helm-charts/postgres/|^infra/helm-charts/weaviate/|^\.github/workflows/deploy-infrastructure\.yml)"; then
+              echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "infrastructure_changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "infrastructure_changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Kubernetes tools
+        if: steps.changes.outputs.infrastructure_changed == 'true'
         run: |
           echo "🔧 Setting up Kubernetes tools..."
           
@@ -52,6 +70,7 @@ jobs:
           helm version
 
       - name: Configure kubectl
+        if: steps.changes.outputs.infrastructure_changed == 'true'
         run: |
           echo "🔧 Configuring kubectl..."
           
@@ -85,7 +104,7 @@ jobs:
 
 
       - name: Deploy PostgreSQL
-        if: ${{ github.event.inputs.deploy_postgres != 'false' }}
+        if: steps.changes.outputs.infrastructure_changed == 'true' && github.event.inputs.deploy_postgres != 'false'
         env:
           HELM_RELEASE_NAME: postgres
           CHART_PATH: ./infra/helm-charts/postgres
@@ -101,7 +120,7 @@ jobs:
           echo "✅ PostgreSQL deployed successfully"
 
       - name: Deploy Weaviate
-        if: ${{ github.event.inputs.deploy_weaviate != 'false' }}
+        if: steps.changes.outputs.infrastructure_changed == 'true' && github.event.inputs.deploy_weaviate != 'false'
         env:
           HELM_RELEASE_NAME: weaviate
           CHART_PATH: ./infra/helm-charts/weaviate
@@ -116,6 +135,7 @@ jobs:
           echo "✅ Weaviate deployed successfully"
 
       - name: Verify Infrastructure
+        if: steps.changes.outputs.infrastructure_changed == 'true'
         run: |
           echo "🔍 Verifying infrastructure deployment..."
           
@@ -149,6 +169,7 @@ jobs:
           kubectl get pvc -n study-mate
 
       - name: Infrastructure Health Check
+        if: steps.changes.outputs.infrastructure_changed == 'true'
         run: |
           echo "🏥 Performing infrastructure health checks..."
           
@@ -185,6 +206,7 @@ jobs:
           fi
 
       - name: Deployment Summary
+        if: steps.changes.outputs.infrastructure_changed == 'true'
         run: |
           echo "🏗️  Infrastructure Deployment Complete!"
           echo "📦 Namespace: study-mate"

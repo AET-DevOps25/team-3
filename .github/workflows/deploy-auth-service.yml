@@ -1,12 +1,11 @@
 name: Deploy Auth Service
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'server/auth-service/**'
-      - 'infra/helm-charts/auth-service/**'
-      - '.github/workflows/deploy-auth-service.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -23,29 +22,51 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for auth service changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Check if auth service files changed in the commit that triggered CI
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            if echo "$CHANGED_FILES" | grep -E "(^server/auth-service/|^infra/helm-charts/auth-service/|^\.github/workflows/deploy-auth-service\.yml)"; then
+              echo "auth_service_changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "auth_service_changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "auth_service_changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Java
+        if: steps.changes.outputs.auth_service_changed == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
+        if: steps.changes.outputs.auth_service_changed == 'true'
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: '8.5'
 
       - name: Build Auth Service
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           cd server/auth-service
           ./gradlew build -x test
           echo "✅ Auth service built successfully"
 
       - name: Build Docker Image
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           cd server/auth-service
           docker build -t ghcr.io/aet-devops25/team-3/auth-service:${{ github.event.inputs.image_tag || github.sha }} .
@@ -53,6 +74,7 @@ jobs:
           echo "✅ Docker image built successfully"
 
       - name: Login to GitHub Container Registry
+        if: steps.changes.outputs.auth_service_changed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -60,6 +82,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Docker Image
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           cd server/auth-service
           docker push ghcr.io/aet-devops25/team-3/auth-service:${{ github.event.inputs.image_tag || github.sha }}
@@ -67,6 +90,7 @@ jobs:
           echo "✅ Docker image pushed successfully"
 
       - name: Setup Kubernetes tools
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           echo "🔧 Setting up Kubernetes tools..."
           
@@ -86,6 +110,7 @@ jobs:
           helm version
 
       - name: Configure kubectl
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           echo "🔧 Configuring kubectl..."
           
@@ -117,6 +142,7 @@ jobs:
           echo "✅ Kubectl configured"
 
       - name: Deploy Helm Chart
+        if: steps.changes.outputs.auth_service_changed == 'true'
         env:
           HELM_RELEASE_NAME: auth-service
           CHART_PATH: ./infra/helm-charts/auth-service
@@ -134,6 +160,7 @@ jobs:
           echo "✅ Auth service deployed successfully"
 
       - name: Verify Deployment
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           echo "🔍 Verifying auth service deployment..."
           
@@ -174,6 +201,7 @@ jobs:
           kill $PF_PID 2>/dev/null || true
 
       - name: Deployment Summary
+        if: steps.changes.outputs.auth_service_changed == 'true'
         run: |
           echo "🌐 Auth Service Deployment Complete!"
           echo "📦 Namespace: study-mate"

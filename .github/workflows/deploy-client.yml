@@ -1,12 +1,11 @@
 name: Deploy Client
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'client/**'
-      - 'infra/helm-charts/client/**'
-      - '.github/workflows/deploy-client.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -23,10 +22,28 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for client changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Check if client files changed in the commit that triggered CI
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            if echo "$CHANGED_FILES" | grep -E "(^client/|^infra/helm-charts/client/|^\.github/workflows/deploy-client\.yml)"; then
+              echo "client_changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "client_changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "client_changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

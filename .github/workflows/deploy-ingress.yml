@@ -1,11 +1,11 @@
 name: Deploy Ingress
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'infra/helm-charts/ingress/**'
-      - '.github/workflows/deploy-ingress.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -25,17 +25,37 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 2
+
+    - name: Check for ingress changes
+      id: changes
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_run" ]; then
+          # Check if ingress files changed in the commit that triggered CI
+          CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+          if echo "$CHANGED_FILES" | grep -E "(^infra/helm-charts/ingress/|^\.github/workflows/deploy-ingress\.yml)"; then
+            echo "ingress_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "ingress_changed=false" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "ingress_changed=true" >> $GITHUB_OUTPUT
+        fi
 
     - name: Set up Kubernetes tools
+      if: steps.changes.outputs.ingress_changed == 'true'
       uses: azure/setup-kubectl@v3
       with:
         version: 'latest'
 
     - name: Configure kubectl
+      if: steps.changes.outputs.ingress_changed == 'true'
       run: |
         mkdir -p $HOME/.kube
         cat > $HOME/.kube/config << 'EOF'
@@ -62,6 +82,7 @@ jobs:
         chmod 600 $HOME/.kube/config
 
     - name: Verify namespace exists
+      if: steps.changes.outputs.ingress_changed == 'true'
       run: |
         echo "🔍 Verifying namespace exists..."
         if ! kubectl get namespace study-mate > /dev/null 2>&1; then
@@ -73,6 +94,7 @@ jobs:
         echo "✅ Namespace 'study-mate' exists"
 
     - name: Deploy Ingress
+      if: steps.changes.outputs.ingress_changed == 'true'
       run: |
         echo "🚀 Deploying Ingress with API routes..."
         kubectl apply -f client-ingress.yaml
@@ -80,6 +102,7 @@ jobs:
         echo "✅ Ingress deployed successfully"
 
     - name: Verify deployment
+      if: steps.changes.outputs.ingress_changed == 'true'
       run: |
         echo "Waiting for ingress to be ready..."
         

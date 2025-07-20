@@ -1,12 +1,11 @@
 name: Deploy GenAI Service
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI Test Suite"]
+    types:
+      - completed
     branches: [main]
-    paths:
-      - 'server/genai-service/**'
-      - 'infra/helm-charts/genai-service/**'
-      - '.github/workflows/deploy-genai-service.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -23,29 +22,51 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name != 'workflow_run' }}
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for genai-service changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            # Check if genai-service files changed in the commit that triggered CI
+            CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            if echo "$CHANGED_FILES" | grep -E "(^server/genai-service/|^infra/helm-charts/genai-service/|^\.github/workflows/deploy-genai-service\.yml)"; then
+              echo "genai_service_changed=true" >> $GITHUB_OUTPUT
+            else
+              echo "genai_service_changed=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "genai_service_changed=true" >> $GITHUB_OUTPUT
+          fi
 
       - name: Setup Java
+        if: steps.changes.outputs.genai_service_changed == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
+        if: steps.changes.outputs.genai_service_changed == 'true'
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: '8.5'
 
       - name: Build GenAI Service
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           cd server/genai-service
           ./gradlew build -x test
           echo "✅ GenAI service built successfully"
 
       - name: Build Docker Image
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           cd server/genai-service
           docker build -t ghcr.io/aet-devops25/team-3/genai-service:${{ github.event.inputs.image_tag || github.sha }} .
@@ -53,6 +74,7 @@ jobs:
           echo "✅ Docker image built successfully"
 
       - name: Login to GitHub Container Registry
+        if: steps.changes.outputs.genai_service_changed == 'true'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -60,6 +82,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push Docker Image
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           cd server/genai-service
           docker push ghcr.io/aet-devops25/team-3/genai-service:${{ github.event.inputs.image_tag || github.sha }}
@@ -67,6 +90,7 @@ jobs:
           echo "✅ Docker image pushed successfully"
 
       - name: Setup Kubernetes tools
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           echo "🔧 Setting up Kubernetes tools..."
           
@@ -86,6 +110,7 @@ jobs:
           helm version
 
       - name: Configure kubectl
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           echo "🔧 Configuring kubectl..."
           
@@ -119,6 +144,7 @@ jobs:
 
 
       - name: Deploy Helm Chart
+        if: steps.changes.outputs.genai_service_changed == 'true'
         env:
           HELM_RELEASE_NAME: genai-service
           CHART_PATH: ./infra/helm-charts/genai-service
@@ -136,6 +162,7 @@ jobs:
           echo "✅ GenAI service deployed successfully"
 
       - name: Verify Deployment
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           echo "🔍 Verifying GenAI service deployment..."
           
@@ -169,6 +196,7 @@ jobs:
           kill $PF_PID 2>/dev/null || true
 
       - name: Deployment Summary
+        if: steps.changes.outputs.genai_service_changed == 'true'
         run: |
           echo "🌐 GenAI Service Deployment Complete!"
           echo "📦 Namespace: study-mate"
