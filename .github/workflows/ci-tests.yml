@@ -1,0 +1,204 @@
+name: CI Test Suite
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches-ignore: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  NODE_VERSION: '18'
+  PYTHON_VERSION: '3.9'
+  JAVA_VERSION: '21'
+
+jobs:
+  # Job 1: Client Tests (React/TypeScript)
+  client-tests:
+    name: Client Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: client/package-lock.json
+        
+    - name: Install dependencies
+      run: |
+        cd client
+        npm ci
+        
+    - name: Run type checking
+      run: |
+        cd client
+        npm run typecheck
+        
+    - name: Run linting
+      run: |
+        cd client
+        npm run lint
+        
+    - name: Run tests
+      run: |
+        cd client
+        npm run test
+
+  # Job 2: Python GenAI Tests
+  genai-tests:
+    name: GenAI Python Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    services:
+      # Start Weaviate for integration tests
+      weaviate:
+        image: cr.weaviate.io/semitechnologies/weaviate:1.30.3
+        ports:
+          - 8080:8080
+        env:
+          AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+          QUERY_DEFAULTS_LIMIT: 25
+          PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+          
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+        cache-dependency-path: |
+          genAi/requirements.txt
+          genAi/requirements-test.txt
+          
+    - name: Wait for Weaviate to be ready
+      run: |
+        echo "Waiting for Weaviate to start..."
+        timeout 120 bash -c 'until curl -f http://localhost:8080/v1/.well-known/ready > /dev/null 2>&1; do sleep 5; done' || echo "Weaviate may not be ready, continuing anyway"
+        
+    - name: Install dependencies
+      run: |
+        cd genAi
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        
+    - name: Run code formatting check
+      run: |
+        cd genAi
+        black --check .
+        
+    - name: Run tests with coverage
+      env:
+        OPEN_WEBUI_API_KEY_CHAT: 'test-chat-key'
+        OPEN_WEBUI_API_KEY_GEN: 'test-gen-key'
+        WEAVIATE_HOST: localhost
+        WEAVIATE_PORT: 8080
+      run: |
+        cd genAi
+        python -m pytest --cov=. --cov-report=xml --cov-report=html --junitxml=test-results.xml -v
+
+  # Job 3: Auth Service Tests (Kotlin)
+  auth-service-tests:
+    name: Auth Service Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: auth_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'gradle'
+        
+    - name: Make gradlew executable
+      run: chmod +x server/auth-service/gradlew
+      
+    - name: Run tests
+      env:
+        SPRING_PROFILES_ACTIVE: test
+        SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/auth_test
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+        SPRING_DATASOURCE_USERNAME: test
+        SPRING_DATASOURCE_PASSWORD: test
+        SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      run: |
+        cd server/auth-service
+        ./gradlew test --info --stacktrace
+
+  # Job 4: Document Service Tests (Kotlin)
+  document-service-tests:
+    name: Document Service Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: document_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        cache: 'gradle'
+        
+    - name: Make gradlew executable
+      run: chmod +x server/document-service/gradlew
+      
+    - name: Run tests
+      env:
+        SPRING_PROFILES_ACTIVE: test
+        SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/document_test
+        SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+        SPRING_DATASOURCE_USERNAME: test
+        SPRING_DATASOURCE_PASSWORD: test
+        SPRING_JPA_DATABASE_PLATFORM: org.hibernate.dialect.PostgreSQLDialect
+      run: |
+        cd server/document-service
+        ./gradlew test --info --stacktrace

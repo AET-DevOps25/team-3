@@ -12,21 +12,47 @@ load_dotenv()
 
 
 class StudyLLM:
-    # for chat
-    chat_llm = ChatOpenAI(
-        model="llama3.3:latest",
-        temperature=0.5,
-        api_key=os.getenv("OPEN_WEBUI_API_KEY_CHAT"),
-        base_url="https://gpu.aet.cit.tum.de/api/"
-    )
+    # Class-level attributes for lazy initialization
+    _chat_llm = None
+    _generation_llm = None
     
-    # For summaries, quizzes, flashcards
-    generation_llm = ChatOpenAI(
-        model="llama3.3:latest",
-        temperature=0.5,
-        api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
-        base_url="https://gpu.aet.cit.tum.de/api/"
-    )
+    @property
+    def chat_llm(self):
+        if StudyLLM._chat_llm is None:
+            StudyLLM._chat_llm = ChatOpenAI(
+                model="llama3.3:latest",
+                temperature=0.5,
+                api_key=os.getenv("OPEN_WEBUI_API_KEY_CHAT"),
+                base_url="https://gpu.aet.cit.tum.de/api/"
+            )
+        return StudyLLM._chat_llm
+    
+    @chat_llm.setter
+    def chat_llm(self, value):
+        StudyLLM._chat_llm = value
+    
+    @chat_llm.deleter
+    def chat_llm(self):
+        StudyLLM._chat_llm = None
+    
+    @property
+    def generation_llm(self):
+        if StudyLLM._generation_llm is None:
+            StudyLLM._generation_llm = ChatOpenAI(
+                model="llama3.3:latest",
+                temperature=0.5,
+                api_key=os.getenv("OPEN_WEBUI_API_KEY_GEN"),
+                base_url="https://gpu.aet.cit.tum.de/api/"
+            )
+        return StudyLLM._generation_llm
+    
+    @generation_llm.setter
+    def generation_llm(self, value):
+        StudyLLM._generation_llm = value
+    
+    @generation_llm.deleter
+    def generation_llm(self):
+        StudyLLM._generation_llm = None
     
     def __init__(self, doc_path: str):
         base_system_template = ("You are an expert on the information in the context given below.\n"
@@ -133,3 +159,7 @@ class StudyLLM:
         Cleanup resources used by the LLM.
         """
         self.rag_helper.cleanup()
+    
+    def _get_chat_llm(self):
+        """Helper method for testing to access chat_llm"""
+        return self.chat_llm
