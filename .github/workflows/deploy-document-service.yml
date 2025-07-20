@@ -116,34 +116,22 @@ jobs:
           
           echo "✅ Kubectl configured"
           
-          # Test connection
-          echo "🔍 Testing cluster connection..."
-          kubectl cluster-info || {
-            echo "❌ Failed to connect to cluster"
-            exit 1
-          }
-          echo "✅ Cluster connection successful"
 
-      - name: Deploy Document Service
+
+      - name: Deploy Helm Chart
+        env:
+          HELM_RELEASE_NAME: document-service
+          CHART_PATH: ./infra/helm-charts/document-service
+          HELM_NAMESPACE: study-mate
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
         run: |
           echo "🚀 Deploying Document Service..."
           
-          # Ensure namespace exists
-          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy document service with secrets
-          helm upgrade --install document-service ./infra/helm-charts/document-service -n study-mate \
-            --set teamid=study-mate \
-            --set documentService.image.tag="${{ github.event.inputs.image_tag || github.sha }}" \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set documentService.image.tag=${{ env.IMAGE_TAG }} \
             --set secrets.jwt.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
-            --wait --timeout=5m || {
-            echo "❌ Document service deployment failed"
-            echo "🔍 Checking deployment status..."
-            helm status document-service -n study-mate || echo "⚠️  Could not get release status"
-            echo "🔍 Checking pod status..."
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=document-service || echo "⚠️  Could not get pod status"
-            exit 1
-          }
+            --wait --timeout=5m
           
           echo "✅ Document service deployed successfully"
 

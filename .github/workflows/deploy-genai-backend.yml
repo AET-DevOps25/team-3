@@ -118,36 +118,24 @@ jobs:
           
           echo "✅ Kubectl configured"
           
-          # Test connection
-          echo "🔍 Testing cluster connection..."
-          kubectl cluster-info || {
-            echo "❌ Failed to connect to cluster"
-            exit 1
-          }
-          echo "✅ Cluster connection successful"
 
-      - name: Deploy GenAI Backend
+
+      - name: Deploy Helm Chart
+        env:
+          HELM_RELEASE_NAME: genai-backend
+          CHART_PATH: ./infra/helm-charts/genai-backend
+          HELM_NAMESPACE: study-mate
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
         run: |
           echo "🚀 Deploying GenAI Backend..."
           
-          # Ensure namespace exists
-          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy genai backend with secrets
-          helm upgrade --install genai-backend ./infra/helm-charts/genai-backend -n study-mate \
-            --set teamid=study-mate \
-            --set genaiBackend.image.tag="${{ github.event.inputs.image_tag || github.sha }}" \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set genaiBackend.image.tag=${{ env.IMAGE_TAG }} \
             --set secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPENWEBUI_API_KEY_CHAT }}" \
             --set secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPENWEBUI_API_KEY_GEN }}" \
             --set secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
-            --wait --timeout=5m || {
-            echo "❌ GenAI backend deployment failed"
-            echo "🔍 Checking deployment status..."
-            helm status genai-backend -n study-mate || echo "⚠️  Could not get release status"
-            echo "🔍 Checking pod status..."
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=genai-backend || echo "⚠️  Could not get pod status"
-            exit 1
-          }
+            --wait --timeout=5m
           
           echo "✅ GenAI backend deployed successfully"
 

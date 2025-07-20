@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "studymate.fullname" . }}-weaviate
-  namespace: {{ .Values.teamid }}
+  name: {{ include "weaviate.fullname" . }}
+  namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "studymate.labels" . | nindent 4 }}
+    {{- include "weaviate.labels" . | nindent 4 }}
     app.kubernetes.io/component: weaviate
 spec:
   replicas: {{ .Values.weaviate.replicaCount }}
   selector:
     matchLabels:
-      {{- include "studymate.selectorLabels" . | nindent 6 }}
+      {{- include "weaviate.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: weaviate
   template:
     metadata:
       labels:
-        {{- include "studymate.selectorLabels" . | nindent 8 }}
+        {{- include "weaviate.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: weaviate
     spec:
       containers:

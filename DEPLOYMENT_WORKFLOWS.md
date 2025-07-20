@@ -15,14 +15,13 @@ The deployment system supports **push to main** and **pull request** triggers, p
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| `deploy-kubernetes.yml` | Push to main + PR | Full application deployment |
+| `deploy-kubernetes.yml` | Push to main + PR | Full application deployment (includes ingress) |
 | `deploy-auth-service.yml` | Push to main + PR | Auth service only |
 | `deploy-client.yml` | Push to main + PR | Client (React) only |
 | `deploy-document-service.yml` | Push to main + PR | Document service only |
 | `deploy-genai-service.yml` | Push to main + PR | GenAI service only |
 | `deploy-genai-backend.yml` | Push to main + PR | GenAI backend only |
 | `deploy-infrastructure.yml` | Push to main + PR | PostgreSQL + Weaviate |
-| `deploy-ingress.yml` | Push to main + PR | Ingress configuration |
 
 ## 🎯 Trigger Details
 
@@ -57,12 +56,17 @@ on:
 ### **1. Push to Main Branch**
 - **Trigger**: Any push to `main` branch
 - **Action**: Deploy to production namespace (`study-mate`)
-- **Result**: Live application updated
+- **Result**: Live application updated (includes ingress configuration)
 
 ### **2. Individual Service PR**
 - **Trigger**: PR with changes to specific service
 - **Action**: Deploy only that service to production
 - **Result**: Targeted service update
+
+### **3. Ingress Management**
+- **Note**: Ingress is managed by the main `deploy-kubernetes.yml` workflow
+- **No separate ingress workflow**: Ingress configuration is included in the main Helm chart
+- **Automatic updates**: Ingress is updated whenever the main deployment runs
 
 ## 📦 Namespace Strategy
 
@@ -87,6 +91,23 @@ All workflows require these GitHub secrets:
 ## 🔧 Kubernetes Configuration
 
 All workflows use a standardized hardcoded kubeconfig approach for the student cluster:
+
+### **Standardized Deployment Pattern:**
+All workflows use the same Helm deployment format:
+
+```yaml
+- name: Deploy Helm Chart
+  env:
+    HELM_RELEASE_NAME: {service-name}
+    CHART_PATH: ./infra/helm-charts/{service-name}
+    HELM_NAMESPACE: study-mate
+    IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+  run: |
+    helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+      --namespace ${{ env.HELM_NAMESPACE }} \
+      --set image.tag=${{ env.IMAGE_TAG }} \
+      --wait --timeout=5m
+```
 
 ### **Kubeconfig Setup:**
 Each workflow includes a "Configure kubectl" step that creates the kubeconfig file:
@@ -124,6 +145,8 @@ Each workflow includes a "Configure kubectl" step that creates the kubeconfig fi
 - ✅ **Consistent approach** - all workflows use the same pattern
 - ✅ **Simplified setup** - no need to manage base64-encoded secrets
 - ✅ **Easy updates** - change token in one place, update all workflows
+- ✅ **Standardized deployment** - all services use the same Helm deployment format
+- ✅ **Permission-aware** - no cluster connection tests that require elevated permissions
 
 ## 🎯 Usage Examples
 

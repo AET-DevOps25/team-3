@@ -50,8 +50,8 @@ jobs:
       - name: Build Docker Image
         run: |
           cd client
-          docker build -t ghcr.io/aet-devops25/team-3/client:${{ github.event.inputs.image_tag || github.sha }} .
-          docker build -t ghcr.io/aet-devops25/team-3/client:k8s-latest .
+          docker build --build-arg VITE_API_BASE_URL=https://study-mate.student.k8s.aet.cit.tum.de -t ghcr.io/aet-devops25/team-3/client:${{ github.event.inputs.image_tag || github.sha }} .
+          docker build --build-arg VITE_API_BASE_URL=https://study-mate.student.k8s.aet.cit.tum.de -t ghcr.io/aet-devops25/team-3/client:k8s-latest .
           echo "✅ Docker image built successfully"
 
       - name: Login to GitHub Container Registry
@@ -118,33 +118,22 @@ jobs:
           
           echo "✅ Kubectl configured"
           
-          # Test connection
-          echo "🔍 Testing cluster connection..."
-          kubectl cluster-info || {
-            echo "❌ Failed to connect to cluster"
-            exit 1
-          }
-          echo "✅ Cluster connection successful"
 
-      - name: Deploy Client
+
+      - name: Deploy Helm Chart
+        env:
+          HELM_RELEASE_NAME: client
+          CHART_PATH: ./infra/helm-charts/client
+          HELM_NAMESPACE: study-mate
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
         run: |
           echo "🚀 Deploying Client..."
           
-          # Ensure namespace exists
-          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy client
-          helm upgrade --install client ./infra/helm-charts/client -n study-mate \
-            --set image.tag="${{ github.event.inputs.image_tag || github.sha }}" \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set image.tag=k8s-latest \
             --set apiBaseUrl="https://study-mate.student.k8s.aet.cit.tum.de" \
-            --wait --timeout=5m || {
-            echo "❌ Client deployment failed"
-            echo "🔍 Checking deployment status..."
-            helm status client -n study-mate || echo "⚠️  Could not get release status"
-            echo "🔍 Checking pod status..."
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=client || echo "⚠️  Could not get pod status"
-            exit 1
-          }
+            --wait --timeout=5m
           
           echo "✅ Client deployed successfully"
 

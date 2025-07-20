@@ -85,13 +85,7 @@ jobs:
           
           echo "✅ Kubectl configured"
           
-          # Test connection
-          echo "🔍 Testing cluster connection..."
-          kubectl cluster-info || {
-            echo "❌ Failed to connect to cluster"
-            exit 1
-          }
-          echo "✅ Cluster connection successful"
+
 
 
 
@@ -134,26 +128,30 @@ jobs:
           fi
           echo "✅ Namespace '${{ env.HELM_NAMESPACE }}' exists"
 
-      - name: Deploy with Helm
+      - name: Deploy Helm Chart
         env:
+          HELM_RELEASE_NAME: study-mate
+          CHART_PATH: ./infra/helm
+          HELM_NAMESPACE: study-mate
           DOMAIN: ${{ github.event.inputs.domain || 'study-mate.student.k8s.aet.cit.tum.de' }}
         run: |
           echo "🚀 Deploying StudyMate to Kubernetes..."
           echo "📦 Upgrading Helm release..."
           
-          helm upgrade study-mate ./infra/helm -n ${{ env.HELM_NAMESPACE }} \
-              --set ingress.host="${DOMAIN}" \
-              --set client.image.tag="k8s-latest" \
-            --set authService.image.tag="k8s-latest" \
-            --set documentService.image.tag="k8s-latest" \
-            --set genaiService.image.tag="k8s-latest" \
-            --set genAi.image.tag="k8s-latest" \
-              --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
-              --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set ingress.host="${DOMAIN}" \
+            --set client.image.tag="k8s-latest" \
+            --set authService.image.tag="latest" \
+            --set documentService.image.tag="latest" \
+            --set genaiService.image.tag="latest" \
+            --set genAi.image.tag="latest" \
+            --set-string secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
+            --set-string secrets.auth.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
             --set-string secrets.genai.data.openWebUiApiKeyChat="${{ secrets.OPEN_WEBUI_API_KEY_CHAT }}" \
             --set-string secrets.genai.data.openWebUiApiKeyGen="${{ secrets.OPEN_WEBUI_API_KEY_GEN }}" \
             --set-string secrets.genai.data.langsmithApiKey="${{ secrets.LANGSMITH_API_KEY }}" \
-              --wait --timeout=10m
+            --wait --timeout=10m
 
       - name: Verify deployment
         run: |

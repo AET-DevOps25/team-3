@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'infra/helm-charts/ingress/**'
+      - 'client-ingress.yaml'
       - '.github/workflows/deploy-ingress.yml'
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - 'infra/helm-charts/ingress/**'
+      - 'client-ingress.yaml'
       - '.github/workflows/deploy-ingress.yml'
   workflow_dispatch:
     inputs:
@@ -74,16 +74,29 @@ jobs:
 
     - name: Deploy Ingress
       run: |
-        helm upgrade --install ingress ./infra/helm-charts/ingress \
-          --namespace study-mate \
-          --wait --timeout=5m
+        echo "🚀 Deploying Ingress with API routes..."
+        kubectl apply -f client-ingress.yaml
+        
+        echo "✅ Ingress deployed successfully"
 
     - name: Verify deployment
       run: |
         echo "Waiting for ingress to be ready..."
-        kubectl wait --for=condition=ready ingress/study-mate \
+        kubectl wait --for=condition=ready ingress/study-mate-client-ingress \
           --namespace study-mate \
           --timeout=300s
         
         echo "Ingress deployment successful!"
-        kubectl get ingress -n study-mate 
+        kubectl get ingress -n study-mate
+        echo ""
+        echo "🔍 Checking ingress configuration:"
+        kubectl describe ingress study-mate-client-ingress -n study-mate
+        
+        echo ""
+        echo "🌐 Application should be accessible at:"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de"
+        echo ""
+        echo "🔗 API endpoints:"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de/api/auth/*"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de/api/documents/*"
+        echo "   https://study-mate.student.k8s.aet.cit.tum.de/api/genai/*" 

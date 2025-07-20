@@ -115,34 +115,21 @@ jobs:
           chmod 600 $HOME/.kube/config
           
           echo "✅ Kubectl configured"
-          
-          # Test connection
-          echo "🔍 Testing cluster connection..."
-          kubectl cluster-info || {
-            echo "❌ Failed to connect to cluster"
-            exit 1
-          }
-          echo "✅ Cluster connection successful"
 
-      - name: Deploy Auth Service
+      - name: Deploy Helm Chart
+        env:
+          HELM_RELEASE_NAME: auth-service
+          CHART_PATH: ./infra/helm-charts/auth-service
+          HELM_NAMESPACE: study-mate
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
         run: |
           echo "🚀 Deploying Auth Service..."
           
-          # Ensure namespace exists
-          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy auth service with secrets
-          helm upgrade --install auth-service ./infra/helm-charts/auth-service -n study-mate \
-            --set authService.image.tag="${{ github.event.inputs.image_tag || github.sha }}" \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set authService.image.tag=${{ env.IMAGE_TAG }} \
             --set secrets.jwt.data.jwtSecret="${{ secrets.JWT_SECRET }}" \
-            --wait --timeout=5m || {
-            echo "❌ Auth service deployment failed"
-            echo "🔍 Checking deployment status..."
-            helm status auth-service -n study-mate || echo "⚠️  Could not get release status"
-            echo "🔍 Checking pod status..."
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=auth-service || echo "⚠️  Could not get pod status"
-            exit 1
-          }
+            --wait --timeout=5m
           
           echo "✅ Auth service deployed successfully"
 

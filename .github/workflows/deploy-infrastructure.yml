@@ -82,56 +82,36 @@ jobs:
           
           echo "✅ Kubectl configured"
           
-          # Test connection
-          echo "🔍 Testing cluster connection..."
-          kubectl cluster-info || {
-            echo "❌ Failed to connect to cluster"
-            exit 1
-          }
-          echo "✅ Cluster connection successful"
+
 
       - name: Deploy PostgreSQL
         if: ${{ github.event.inputs.deploy_postgres != 'false' }}
+        env:
+          HELM_RELEASE_NAME: postgres
+          CHART_PATH: ./infra/helm-charts/postgres
+          HELM_NAMESPACE: study-mate
         run: |
           echo "🚀 Deploying PostgreSQL..."
           
-          # Ensure namespace exists
-          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy PostgreSQL with secrets
-          helm upgrade --install postgres ./infra/helm-charts/postgres -n study-mate \
-            --set teamid=study-mate \
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
             --set secrets.postgres.data.password="${{ secrets.POSTGRES_PASSWORD }}" \
-            --wait --timeout=10m || {
-            echo "❌ PostgreSQL deployment failed"
-            echo "🔍 Checking deployment status..."
-            helm status postgres -n study-mate || echo "⚠️  Could not get release status"
-            echo "🔍 Checking pod status..."
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=postgres || echo "⚠️  Could not get pod status"
-            exit 1
-          }
+            --wait --timeout=10m
           
           echo "✅ PostgreSQL deployed successfully"
 
       - name: Deploy Weaviate
         if: ${{ github.event.inputs.deploy_weaviate != 'false' }}
+        env:
+          HELM_RELEASE_NAME: weaviate
+          CHART_PATH: ./infra/helm-charts/weaviate
+          HELM_NAMESPACE: study-mate
         run: |
           echo "🚀 Deploying Weaviate..."
           
-          # Ensure namespace exists
-          kubectl create namespace study-mate --dry-run=client -o yaml | kubectl apply -f -
-          
-          # Deploy Weaviate
-          helm upgrade --install weaviate ./infra/helm-charts/weaviate -n study-mate \
-            --set teamid=study-mate \
-            --wait --timeout=10m || {
-            echo "❌ Weaviate deployment failed"
-            echo "🔍 Checking deployment status..."
-            helm status weaviate -n study-mate || echo "⚠️  Could not get release status"
-            echo "🔍 Checking pod status..."
-            kubectl get pods -n study-mate -l app.kubernetes.io/name=weaviate || echo "⚠️  Could not get pod status"
-            exit 1
-          }
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --wait --timeout=10m
           
           echo "✅ Weaviate deployed successfully"
 

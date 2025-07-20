@@ -2,6 +2,7 @@
 persistence:
   enabled: true
   size: 2Gi
+  accessMode: ReadWriteOnce
   storageClass: ""  # Use default storage class
 
 weaviate:

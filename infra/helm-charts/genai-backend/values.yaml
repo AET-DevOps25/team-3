@@ -35,7 +35,7 @@ genaiBackend:
           key: open-webui-api-key-gen
 
     - name: WEAVIATE_HOST
-      value: "study-mate-weaviate"
+      value: "weaviate"
     - name: WEAVIATE_PORT
       value: "8087"
 
