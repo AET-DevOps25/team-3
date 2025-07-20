@@ -1,0 +1,53 @@
+# GenAI Backend - Python RAG service
+teamid: study-mate
+
+# Secrets configuration
+secrets:
+  genai:
+    create: true
+    existingSecret: false
+    name: genai-secret
+    data:
+      openWebUiApiKeyChat: ""  # Set via --set-string secrets.genai.data.openWebUiApiKeyChat=<value>
+      openWebUiApiKeyGen: ""   # Set via --set-string secrets.genai.data.openWebUiApiKeyGen=<value>
+      langsmithApiKey: ""       # Optional: Set via --set-string secrets.genai.data.langsmithApiKey=<value>
+
+genaiBackend:
+  image:
+    repository: ghcr.io/aet-devops25/team-3/genai
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8081
+    targetPort: 8081
+  replicaCount: 1
+  env:
+    - name: OPEN_WEBUI_API_KEY_CHAT
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: open-webui-api-key-chat
+    - name: OPEN_WEBUI_API_KEY_GEN
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: open-webui-api-key-gen
+
+    - name: WEAVIATE_HOST
+      value: "weaviate"
+    - name: WEAVIATE_PORT
+      value: "8087"
+
+    # LangSmith Configuration
+    - name: LANGSMITH_TRACING
+      value: "true"
+    - name: LANGSMITH_ENDPOINT
+      value: "https://api.smith.langchain.com"
+    - name: LANGSMITH_PROJECT
+      value: "study-mate"
+    - name: LANGSMITH_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: genai-secret
+          key: langsmith-api-key

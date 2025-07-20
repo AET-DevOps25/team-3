@@ -1,0 +1,55 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: study-mate-client-ingress
+  namespace: study-mate
+  annotations:
+    # SSL/TLS configuration
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # CORS configuration for frontend
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+    nginx.ingress.kubernetes.io/cors-expose-headers: "Content-Length,Content-Range"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - study-mate.student.k8s.aet.cit.tum.de
+    secretName: study-mate-client-tls
+  rules:
+  - host: study-mate.student.k8s.aet.cit.tum.de
+    http:
+      paths:
+      # API Routes - Backend Services
+      - path: /api/auth
+        pathType: Prefix
+        backend:
+          service:
+            name: study-mate-auth-service
+            port:
+              number: 8086
+      - path: /api/documents
+        pathType: Prefix
+        backend:
+          service:
+            name: study-mate-document-service
+            port:
+              number: 8084
+      - path: /api/genai
+        pathType: Prefix
+        backend:
+          service:
+            name: study-mate-genai-service
+            port:
+              number: 8085
+      # Frontend - React Client (fallback for all other paths)
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: client
+            port:
+              number: 80 

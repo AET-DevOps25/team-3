@@ -1,0 +1,191 @@
+name: Deploy Client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'client/**'
+      - 'infra/helm-charts/client/**'
+      - '.github/workflows/deploy-client.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'client/**'
+      - 'infra/helm-charts/client/**'
+      - '.github/workflows/deploy-client.yml'
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image tag to deploy'
+        required: true
+        default: 'k8s-latest'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd client
+          npm ci
+          echo "✅ Dependencies installed successfully"
+
+      - name: Build React app
+        run: |
+          cd client
+          npm run build
+          echo "✅ React app built successfully"
+
+      - name: Build Docker Image
+        run: |
+          cd client
+          docker build --build-arg VITE_API_BASE_URL=https://study-mate.student.k8s.aet.cit.tum.de -t ghcr.io/aet-devops25/team-3/client:${{ github.event.inputs.image_tag || github.sha }} .
+          docker build --build-arg VITE_API_BASE_URL=https://study-mate.student.k8s.aet.cit.tum.de -t ghcr.io/aet-devops25/team-3/client:k8s-latest .
+          echo "✅ Docker image built successfully"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker Image
+        run: |
+          cd client
+          docker push ghcr.io/aet-devops25/team-3/client:${{ github.event.inputs.image_tag || github.sha }}
+          docker push ghcr.io/aet-devops25/team-3/client:k8s-latest
+          echo "✅ Docker image pushed successfully"
+
+      - name: Setup Kubernetes tools
+        run: |
+          echo "🔧 Setting up Kubernetes tools..."
+          
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          
+          # Install Helm
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          
+          # Install jq for JSON parsing
+          sudo apt-get update && sudo apt-get install -y jq
+          
+          echo "✅ Kubernetes tools installed"
+          kubectl version --client
+          helm version
+
+      - name: Configure kubectl
+        run: |
+          echo "🔧 Configuring kubectl..."
+          
+          # Set up kubectl configuration
+          mkdir -p $HOME/.kube
+          cat > $HOME/.kube/config << 'EOF'
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: "student"
+            cluster:
+              server: "https://rancher.ase.cit.tum.de/k8s/clusters/c-m-nhcfjg9h"
+          
+          users:
+          - name: "student"
+            user:
+              token: "kubeconfig-u-g7fbq4tzcsrjvb2:dtw5qr2nkwl5hl4r676dlmt7v9lh9bw5xgkp5l65pf6tr6ql79zsmm"
+          
+          contexts:
+          - name: "student"
+            context:
+              user: "student"
+              cluster: "student"
+          
+          current-context: "student"
+          EOF
+          chmod 600 $HOME/.kube/config
+          
+          echo "✅ Kubectl configured"
+          
+
+
+      - name: Deploy Helm Chart
+        env:
+          HELM_RELEASE_NAME: client
+          CHART_PATH: ./infra/helm-charts/client
+          HELM_NAMESPACE: study-mate
+          IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+        run: |
+          echo "🚀 Deploying Client..."
+          
+          helm upgrade --install ${{ env.HELM_RELEASE_NAME }} ${{ env.CHART_PATH }} \
+            --namespace ${{ env.HELM_NAMESPACE }} \
+            --set image.tag=k8s-latest \
+            --set apiBaseUrl="https://study-mate.student.k8s.aet.cit.tum.de" \
+            --wait --timeout=5m
+          
+          echo "✅ Client deployed successfully"
+
+      - name: Verify Deployment
+        run: |
+          echo "🔍 Verifying client deployment..."
+          
+          # Wait for pod to be ready
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=client -n study-mate --timeout=300s || {
+            echo "❌ Client pod failed to become ready"
+            echo "🔍 Pod status:"
+            kubectl get pods -n study-mate -l app.kubernetes.io/name=client -o wide
+            echo "🔍 Pod logs:"
+            kubectl logs -l app.kubernetes.io/name=client -n study-mate --tail=50 || echo "⚠️  Could not get logs"
+            exit 1
+          }
+          
+          echo "✅ Client is ready"
+          
+          # Check service
+          kubectl get service client -n study-mate
+          
+          # Check ingress
+          kubectl get ingress study-mate-client-ingress -n study-mate
+          
+          # Health check
+          echo "🏥 Performing health check..."
+          kubectl port-forward svc/client 80:80 -n study-mate &
+          PF_PID=$!
+          sleep 10
+          
+          if curl -f http://localhost:80/ > /dev/null 2>&1; then
+            echo "✅ Client health check passed"
+          else
+            echo "❌ Client health check failed"
+          fi
+          
+          kill $PF_PID 2>/dev/null || true
+
+      - name: Deployment Summary
+        run: |
+          echo "🌐 Client Deployment Complete!"
+          echo "📦 Namespace: study-mate"
+          echo "🔧 Release: client"
+          echo "🏷️  Image tag: ${{ github.event.inputs.image_tag || github.sha }}"
+          echo "🌍 URL: https://study-mate.student.k8s.aet.cit.tum.de"
+          echo ""
+          echo "🔧 Useful commands:"
+          echo "  kubectl get pods -n study-mate -l app.kubernetes.io/name=client"
+          echo "  kubectl logs -f deployment/client -n study-mate"
+          echo "  kubectl port-forward svc/client 80:80 -n study-mate"
+          echo ""
+          echo "🔍 Troubleshooting:"
+          echo "  kubectl get events -n study-mate --sort-by='.lastTimestamp'"
+          echo "  helm status client -n study-mate" 

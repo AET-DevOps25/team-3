@@ -1,0 +1,64 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "studymate.fullname" . }}
+  namespace: {{ .Values.teamid }}
+  labels:
+    {{- include "studymate.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if and .Values.ingress.tls .Values.ingress.host }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.teamid }}-tls
+  {{- end }}
+  rules:
+    {{- if .Values.ingress.host }}
+    - host: {{ .Values.ingress.host }}
+      http:
+    {{- else }}
+    - http:
+    {{- end }}
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-client
+                port:
+                  number: {{ .Values.services.client.port }}
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-auth-service
+                port:
+                  number: {{ .Values.services.auth.port }}
+          - path: /api/documents
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-document-service
+                port:
+                  number: {{ .Values.services.document.port }}
+          - path: /api/genai
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-genai-service
+                port:
+                  number: {{ .Values.services.genai.port }}
+          - path: /genai-backend
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "studymate.fullname" . }}-genai-backend
+                port:
+                  number: {{ .Values.services.genaiBackend.port }}
+{{- end }} 
