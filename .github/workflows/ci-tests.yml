@@ -350,7 +350,7 @@ jobs:
         
         # Test core AI features
         python -m pytest test_main.py::TestHealthEndpoint::test_health_check_success -v
-        python -m pytest test_main.py::TestSessionManagement::test_load_session_success -v
+        python -m pytest test_main.py::TestDocumentManagement::test_load_document_success -v
         python -m pytest test_main.py::TestChatEndpoint::test_chat_success -v
         python -m pytest test_main.py::TestSummaryEndpoint::test_summary_success -v
         python -m pytest test_main.py::TestQuizEndpoint::test_quiz_success -v
@@ -358,18 +358,18 @@ jobs:
         
     - name: Test end-to-end AI workflow
       run: |
-        # Test session creation
-        SESSION_RESPONSE=$(curl -X POST http://localhost:8081/session/load \
+        # Test document loading
+        DOCUMENT_RESPONSE=$(curl -X POST http://localhost:8081/document \
           -H "Content-Type: application/json" \
-          -d '{"session_id":"test-session","document_name":"test.pdf","document_base64":"dGVzdCBjb250ZW50"}' \
+          -d '{"user_id":"test-user","document_name":"test.pdf","document_base64":"dGVzdCBjb250ZW50"}' \
           -s)
         
-        echo "Session response: $SESSION_RESPONSE"
+        echo "Document response: $DOCUMENT_RESPONSE"
         
         # Test chat functionality
         CHAT_RESPONSE=$(curl -X POST http://localhost:8081/chat \
           -H "Content-Type: application/json" \
-          -d '{"session_id":"test-session","message":"Hello, how are you?"}' \
+          -d '{"user_id":"test-user","message":"Hello, how are you?"}' \
           -s)
         
         echo "Chat response: $CHAT_RESPONSE"
@@ -377,7 +377,7 @@ jobs:
         # Test summary generation
         SUMMARY_RESPONSE=$(curl -X POST http://localhost:8081/summary \
           -H "Content-Type: application/json" \
-          -d '{"session_id":"test-session"}' \
+          -d '{"user_id":"test-user","document_name":"test.pdf"}' \
           -s)
         
         echo "Summary response: $SUMMARY_RESPONSE"
