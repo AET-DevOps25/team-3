@@ -21,6 +21,9 @@ The system is composed of several modular components:
   - `genai-service`
   - `eureka-server`
   - and shared modules
+  - See [📄 MICROSERVICES_README.md](./server/MICROSERVICES_README.md) for more on each server-side service.
+- **GenAI**: A Generative AI Module with RAG capabilities
+   - Read more in [🧠 GenAI & RAG Pipeline](./genai/README.md)
 - **Infrastructure**:
   - **PostgreSQL** for structured data - Documents, users, etc.
   - **Weaviate** as a vector store for RAG semantic search
@@ -28,8 +31,6 @@ The system is composed of several modular components:
   - **Prometheus** & **Grafana** for observability (`monitoring/`)
   - **Terraform** for AWS setup (EC2 instance provisioning, Security groups, EIP, etc.)
   - **Ansible** for configuring EC2 instances, Docker config validation, and EC2 deployment.
-
-> 📄 See [MICROSERVICES_README.md](./server/MICROSERVICES_README.md) for more on each server-side service.
 
 
 ## 🚀 Deployments
